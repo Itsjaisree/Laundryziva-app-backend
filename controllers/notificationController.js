@@ -24,8 +24,12 @@ const getNotifications = async (req, res) => {
 const markAsRead = async (req, res) => {
   try {
     const { id } = req.params;
-    await run(`UPDATE notifications SET is_read = 1 WHERE id = ?`, [id]);
-    return res.json({ message: 'Notification marked as read' });
+    const result = await run(`UPDATE notifications SET is_read = 1 WHERE id = ?`, [id]);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+    const updated = await get(`SELECT * FROM notifications WHERE id = ?`, [id]);
+    return res.json({ message: 'Notification marked as read', notification: updated });
   } catch (err) {
     console.error('markAsRead error:', err);
     return res.status(500).json({ error: 'Failed to update notification' });
@@ -40,7 +44,7 @@ const markAllAsRead = async (req, res) => {
     } else {
       await run(`UPDATE notifications SET is_read = 1`);
     }
-    return res.json({ message: 'All notifications marked as read' });
+    return res.json({ message: 'All notifications marked as read', is_read: 1 });
   } catch (err) {
     console.error('markAllAsRead error:', err);
     return res.status(500).json({ error: 'Failed to update notifications' });

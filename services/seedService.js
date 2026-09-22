@@ -295,7 +295,77 @@ const seedDatabase = async () => {
     }
   }
 
+  // 7. Seed Sample Notifications
+  const sampleNotifications = [
+    {
+      id: 'NOTIF_1001',
+      user_id: null,
+      title: 'Machine Offline Alert',
+      message: 'PG2 Washing Machine went offline at ABC Hostel, Room 101.',
+      type: 'offline',
+      category: 'warning',
+      icon: 'alert-circle',
+      is_read: 0,
+      created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'NOTIF_1002',
+      user_id: null,
+      title: 'Payment Received',
+      message: '₹97 received successfully from PG1 Washing Machine.',
+      type: 'payment',
+      category: 'info',
+      icon: 'cash',
+      is_read: 0,
+      created_at: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'NOTIF_1003',
+      user_id: null,
+      title: 'Technician Added',
+      message: 'Arjun Kumar has been registered as a Technician.',
+      type: 'user',
+      category: 'info',
+      icon: 'person-add',
+      is_read: 1,
+      created_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'NOTIF_1004',
+      user_id: null,
+      title: 'Maintenance Required',
+      message: 'PG3 Express Dryer requires routine inspection.',
+      type: 'maintenance',
+      category: 'warning',
+      icon: 'build',
+      is_read: 1,
+      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'NOTIF_1005',
+      user_id: null,
+      title: 'System Update',
+      message: 'The organization portal was updated successfully.',
+      type: 'system',
+      category: 'info',
+      icon: 'information-circle',
+      is_read: 1,
+      created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    },
+  ];
+
+  for (const n of sampleNotifications) {
+    const existingNotif = await get(`SELECT * FROM notifications WHERE id = ?`, [n.id]);
+    if (!existingNotif) {
+      await run(`
+        INSERT INTO notifications (id, user_id, title, message, type, category, icon, is_read, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+      `, [n.id, n.user_id, n.title, n.message, n.type, n.category, n.icon, n.is_read, n.created_at]);
+    }
+  }
+
   console.log('Seeding Complete.');
 };
 
 module.exports = { seedDatabase };
+

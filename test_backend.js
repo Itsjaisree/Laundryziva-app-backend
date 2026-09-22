@@ -102,9 +102,26 @@ const runTests = async () => {
     const txns = await request('GET', '/api/transactions/', null, token);
     assert(txns.status === 200 && Array.isArray(txns.data.transactions), 'Transactions Listing API (/api/transactions/)');
 
-    // 11. Notifications List
+    // 11. Notifications List & Read Persistence Test
     const notifs = await request('GET', '/api/notifications/', null, token);
-    assert(notifs.status === 200 && Array.isArray(notifs.data.notifications), 'Notifications Listing API (/api/notifications/)');
+    assert(notifs.status === 200 && Array.isArray(notifs.data.notifications) && notifs.data.notifications.length > 0, 'Notifications Listing API (/api/notifications/)');
+
+    const targetNotif = notifs.data.notifications.find(n => n.is_read === 0) || notifs.data.notifications[0];
+    if (targetNotif) {
+      const markSingle = await request('PUT', `/api/notifications/${targetNotif.id}/read`, null, token);
+      assert(markSingle.status === 200, `Mark Notification Read API (/api/notifications/${targetNotif.id}/read)`);
+
+      const reCheckNotifs = await request('GET', '/api/notifications/', null, token);
+      const updatedNotif = reCheckNotifs.data.notifications.find(n => n.id === targetNotif.id);
+      assert(updatedNotif && updatedNotif.is_read === 1, 'Verified Notification is_read=1 Persisted in DB');
+    }
+
+    const markAll = await request('PUT', '/api/notifications/read-all', null, token);
+    assert(markAll.status === 200, 'Mark All Notifications Read API (/api/notifications/read-all)');
+
+    const allCheckNotifs = await request('GET', '/api/notifications/', null, token);
+    const allAreRead = allCheckNotifs.data.notifications.every(n => n.is_read === 1);
+    assert(allAreRead, 'Verified All Notifications marked as is_read=1 Persistently');
 
     // 12. Firmware History List
     const firmware = await request('GET', '/api/firmware/deployments/history', null, token);
