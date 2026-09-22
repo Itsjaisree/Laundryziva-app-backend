@@ -59,8 +59,19 @@ const refundTransaction = async (req, res) => {
   }
 };
 
+const exportTransactions = async (req, res) => {
+  try {
+    const analyticsController = require('./analyticsController');
+    return analyticsController.exportAnalytics(req, res);
+  } catch (err) {
+    console.error('exportTransactions error:', err);
+    return res.status(500).json({ error: 'Failed to export transactions' });
+  }
+};
+
 module.exports = {
   getTransactions,
   createTransaction,
   refundTransaction,
+  exportTransactions,
 };
