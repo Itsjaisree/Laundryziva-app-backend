@@ -127,6 +127,17 @@ const runTests = async () => {
     const firmware = await request('GET', '/api/firmware/deployments/history', null, token);
     assert(firmware.status === 200 && Array.isArray(firmware.data.deployments), 'Firmware Deployments API (/api/firmware/deployments/history)');
 
+    // 13. Analytics & Export CSV API Test
+    const analyticsSummary = await request('GET', '/api/analytics/summary', null, token);
+    assert(analyticsSummary.status === 200 && typeof analyticsSummary.data?.revenue?.total === 'number', 'Analytics Summary API (/api/analytics/summary)');
+
+    const analyticsMachines = await request('GET', '/api/analytics/machines', null, token);
+    assert(analyticsMachines.status === 200 && Array.isArray(analyticsMachines.data?.machines), 'Analytics Machines API (/api/analytics/machines)');
+
+    const analyticsExport = await request('GET', '/api/analytics/export', null, token);
+    const csvData = typeof analyticsExport.data === 'string' ? analyticsExport.data : JSON.stringify(analyticsExport.data);
+    assert(analyticsExport.status === 200 && csvData.includes('Organization Analytics Summary Report'), 'Analytics Export CSV API (/api/analytics/export)');
+
     console.log(`\n----------------------------------------------------`);
     console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
     console.log(`----------------------------------------------------\n`);
