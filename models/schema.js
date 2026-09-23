@@ -138,6 +138,7 @@ const initSchema = async () => {
     CREATE TABLE IF NOT EXISTS notifications (
       id TEXT PRIMARY KEY,
       user_id TEXT,
+      org_id TEXT,
       title TEXT NOT NULL,
       message TEXT NOT NULL,
       type TEXT DEFAULT 'info',
@@ -147,6 +148,12 @@ const initSchema = async () => {
       created_at TEXT NOT NULL
     );
   `);
+
+  try {
+    await run(`ALTER TABLE notifications ADD COLUMN org_id TEXT;`);
+  } catch (e) {
+    // Column org_id already exists
+  }
 
   // Customer Care Tickets Table
   await run(`

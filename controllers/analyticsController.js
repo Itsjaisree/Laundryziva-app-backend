@@ -196,23 +196,61 @@ const exportAnalytics = async (req, res) => {
       if (orgRecord?.name) orgName = orgRecord.name;
     }
 
+    const startDate = req.query.start_date || req.query.startDate;
+    const endDate = req.query.end_date || req.query.endDate;
+    const statusParam = req.query.status;
+    const deviceIdParam = req.query.device_id || req.query.deviceId;
+
     // Fetch Transactions
     let txnSql = `SELECT * FROM transactions`;
     const params = [];
+    const conditions = [];
+
     if (orgId) {
-      txnSql += ` WHERE (org_id = ? OR org_id IS NULL)`;
+      conditions.push(`(org_id = ? OR org_id IS NULL)`);
       params.push(orgId);
     }
+
+    if (startDate) {
+      const formattedStart = startDate.includes('T') ? startDate : `${startDate}T00:00:00.000Z`;
+      conditions.push(`created_at >= ?`);
+      params.push(formattedStart);
+    }
+
+    if (endDate) {
+      const formattedEnd = endDate.includes('T') ? endDate : `${endDate}T23:59:59.999Z`;
+      conditions.push(`created_at <= ?`);
+      params.push(formattedEnd);
+    }
+
+    if (statusParam && statusParam.toUpperCase() !== 'ALL') {
+      const upperStatus = statusParam.toUpperCase() === 'SUCCESSFUL' ? 'SUCCESS' : statusParam.toUpperCase();
+      conditions.push(`UPPER(status) = UPPER(?)`);
+      params.push(upperStatus);
+    }
+
+    if (deviceIdParam && deviceIdParam.toUpperCase() !== 'ALL') {
+      conditions.push(`(device_id = ? OR machine_name LIKE ?)`);
+      params.push(deviceIdParam);
+      params.push(`%${deviceIdParam}%`);
+    }
+
+    if (conditions.length > 0) {
+      txnSql += ` WHERE ` + conditions.join(' AND ');
+    }
+
     txnSql += ` ORDER BY created_at DESC`;
 
     const txns = await all(txnSql, params);
 
     // Fetch Machines
     let machSql = `SELECT * FROM machines`;
+    const machParams = [];
     if (orgId) {
       machSql += ` WHERE (org_id = ? OR org_id IS NULL)`;
+      machParams.push(orgId);
     }
-    const machines = await all(machSql, params);
+    const machines = await all(machSql, machParams);
 
     // Calculate Summary Totals
     let totalRevenue = 0;

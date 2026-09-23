@@ -1,8 +1,24 @@
 const { run, get, all } = require('../config/db');
+const { createNotification } = require('../services/notificationService');
+
+const getEffectiveOrgId = (req) => {
+  if (req.user && req.user.role_key === 'super_admin') {
+    return req.query.org_id || req.user.org_id || null;
+  }
+  if (req.user && req.user.org_id) {
+    return req.user.org_id;
+  }
+  return req.query.org_id || null;
+};
+
+const isViewOnlyRole = (user) => {
+  if (!user) return false;
+  return user.role_key === 'organization_owner' || user.role_key === 'finance_auditor' || user.role_key === 'support_refund_agent';
+};
 
 const getMachines = async (req, res) => {
   try {
-    const orgId = req.query.org_id || req.user?.org_id;
+    const orgId = getEffectiveOrgId(req);
     let sql = `SELECT * FROM machines`;
     const params = [];
 
@@ -23,7 +39,7 @@ const getMachines = async (req, res) => {
 
 const getFleetSummary = async (req, res) => {
   try {
-    const orgId = req.query.org_id || req.user?.org_id;
+    const orgId = getEffectiveOrgId(req);
     let sql = `SELECT * FROM machines`;
     const params = [];
 
@@ -36,7 +52,10 @@ const getFleetSummary = async (req, res) => {
 
     const total_devices = machines.length;
     const online_devices = machines.filter(m => m.health_status === 'ONLINE').length;
-    const offline_devices = machines.filter(m => m.health_status === 'OFFLINE').length;
+    const offline_devices = machines.filter(m => m.health_status === 'OFFLINE' || m.health_status === 'STALE').length;
+    const running_devices = machines.filter(m => m.state === 'WASHING' || m.state === 'RUNNING' || m.relay1 === 1 || m.relay2 === 1).length;
+    const maintenance_devices = machines.filter(m => m.state === 'MAINTENANCE' || m.health_status === 'MAINTENANCE' || m.state === 'FAULT' || m.health_status === 'ERROR').length;
+    const idle_devices = machines.filter(m => m.state === 'IDLE').length;
     const stale_devices = machines.filter(m => m.health_status === 'STALE').length;
     const error_devices = machines.filter(m => m.health_status === 'ERROR' || m.state === 'FAULT').length;
     const firmware_compliant = machines.filter(m => m.firmware_compliant === 1).length;
@@ -45,7 +64,10 @@ const getFleetSummary = async (req, res) => {
     return res.json({
       total_devices,
       online_devices,
+      running_devices,
       offline_devices,
+      maintenance_devices,
+      idle_devices,
       stale_devices,
       error_devices,
       firmware_compliant,
@@ -59,6 +81,9 @@ const getFleetSummary = async (req, res) => {
 
 const createMachine = async (req, res) => {
   try {
+    if (isViewOnlyRole(req.user)) {
+      return res.status(403).json({ error: 'Forbidden: Organization Owner is a view-only role and cannot perform operational machine actions' });
+    }
     const { device_id, deviceId, friendly_name, friendlyName, location, meta_location, org_id } = req.body;
     const id = device_id || deviceId || `WM_${Date.now().toString().slice(-4)}`;
     const name = friendly_name || friendlyName || 'Washing Machine';
@@ -80,6 +105,16 @@ const createMachine = async (req, res) => {
     `, [id, name, loc, machineOrgId, createdAt, createdAt]);
 
     const created = await get(`SELECT * FROM machines WHERE device_id = ?`, [id]);
+
+    await createNotification({
+      org_id: machineOrgId,
+      title: 'New Machine Added',
+      message: `Machine "${name}" (${id}) has been added to your fleet at ${loc}.`,
+      type: 'machine',
+      category: 'success',
+      icon: 'hardware-chip-outline'
+    });
+
     return res.status(201).json(created);
   } catch (err) {
     console.error('createMachine error:', err);
@@ -89,10 +124,13 @@ const createMachine = async (req, res) => {
 
 const updateMachine = async (req, res) => {
   try {
+    if (isViewOnlyRole(req.user)) {
+      return res.status(403).json({ error: 'Forbidden: Organization Owner is a view-only role and cannot perform operational machine actions' });
+    }
     const { id } = req.params;
     const { friendly_name, friendlyName, location, meta_location, health_status, state } = req.body;
 
-    const machine = await get(`SELECT device_id FROM machines WHERE device_id = ?`, [id]);
+    const machine = await get(`SELECT * FROM machines WHERE device_id = ?`, [id]);
     if (!machine) {
       return res.status(404).json({ error: 'Machine not found' });
     }
@@ -107,10 +145,43 @@ const updateMachine = async (req, res) => {
       await run(`UPDATE machines SET location = ? WHERE device_id = ?`, [loc, id]);
     }
     if (health_status !== undefined) {
-      await run(`UPDATE machines SET health_status = ? WHERE device_id = ?`, [health_status, id]);
+      if (machine.health_status !== health_status) {
+        await run(`UPDATE machines SET health_status = ? WHERE device_id = ?`, [health_status, id]);
+        if (health_status === 'OFFLINE') {
+          await createNotification({
+            org_id: machine.org_id || 'ORG_1637D16F',
+            title: 'Machine Offline',
+            message: `Machine "${name || machine.friendly_name}" (${id}) went offline.`,
+            type: 'machine',
+            category: 'warning',
+            icon: 'alert-circle-outline'
+          });
+        } else if (health_status === 'ERROR') {
+          await createNotification({
+            org_id: machine.org_id || 'ORG_1637D16F',
+            title: 'Machine Fault Detected',
+            message: `Fault detected on machine "${name || machine.friendly_name}" (${id}).`,
+            type: 'machine',
+            category: 'error',
+            icon: 'close-circle-outline'
+          });
+        }
+      }
     }
     if (state !== undefined) {
-      await run(`UPDATE machines SET state = ? WHERE device_id = ?`, [state, id]);
+      if (machine.state !== state) {
+        await run(`UPDATE machines SET state = ? WHERE device_id = ?`, [state, id]);
+        if (state === 'MAINTENANCE') {
+          await createNotification({
+            org_id: machine.org_id || 'ORG_1637D16F',
+            title: 'Maintenance Required',
+            message: `Machine "${name || machine.friendly_name}" (${id}) requires maintenance.`,
+            type: 'maintenance',
+            category: 'warning',
+            icon: 'construct-outline'
+          });
+        }
+      }
     }
 
     const updated = await get(`SELECT * FROM machines WHERE device_id = ?`, [id]);
@@ -123,13 +194,26 @@ const updateMachine = async (req, res) => {
 
 const deleteMachine = async (req, res) => {
   try {
+    if (isViewOnlyRole(req.user)) {
+      return res.status(403).json({ error: 'Forbidden: Organization Owner is a view-only role and cannot perform operational machine actions' });
+    }
     const { id } = req.params;
-    const machine = await get(`SELECT device_id FROM machines WHERE device_id = ?`, [id]);
+    const machine = await get(`SELECT * FROM machines WHERE device_id = ?`, [id]);
     if (!machine) {
       return res.status(404).json({ error: 'Machine not found' });
     }
 
     await run(`DELETE FROM machines WHERE device_id = ?`, [id]);
+
+    await createNotification({
+      org_id: machine.org_id || 'ORG_1637D16F',
+      title: 'Machine Decommissioned',
+      message: `Machine "${machine.friendly_name || id}" (${id}) has been removed from fleet.`,
+      type: 'machine',
+      category: 'warning',
+      icon: 'trash-outline'
+    });
+
     return res.json({ success: true, message: 'Machine decommissioned successfully' });
   } catch (err) {
     console.error('deleteMachine error:', err);
@@ -139,6 +223,9 @@ const deleteMachine = async (req, res) => {
 
 const startMachine = async (req, res) => {
   try {
+    if (isViewOnlyRole(req.user)) {
+      return res.status(403).json({ error: 'Forbidden: Organization Owner is a view-only role and cannot perform operational machine actions' });
+    }
     const { id } = req.params;
     const { transaction_id } = req.body;
 
@@ -157,6 +244,9 @@ const startMachine = async (req, res) => {
 
 const stopMachine = async (req, res) => {
   try {
+    if (isViewOnlyRole(req.user)) {
+      return res.status(403).json({ error: 'Forbidden: Organization Owner is a view-only role and cannot perform operational machine actions' });
+    }
     const { id } = req.params;
 
     await run(`
@@ -174,6 +264,9 @@ const stopMachine = async (req, res) => {
 
 const rebootMachine = async (req, res) => {
   try {
+    if (isViewOnlyRole(req.user)) {
+      return res.status(403).json({ error: 'Forbidden: Organization Owner is a view-only role and cannot perform operational machine actions' });
+    }
     const { id } = req.params;
 
     await run(`UPDATE machines SET last_seen_at = ? WHERE device_id = ?`, [new Date().toISOString(), id]);
@@ -186,6 +279,9 @@ const rebootMachine = async (req, res) => {
 
 const toggleRelay = async (req, res) => {
   try {
+    if (isViewOnlyRole(req.user)) {
+      return res.status(403).json({ error: 'Forbidden: Organization Owner is a view-only role and cannot perform operational machine actions' });
+    }
     const { id } = req.params;
     const { relay, action } = req.body;
 
