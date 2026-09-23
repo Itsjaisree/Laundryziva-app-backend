@@ -52,11 +52,13 @@ const startServer = async () => {
     await initSchema();
     await seedDatabase();
 
-    app.listen(PORT, '0.0.0.0', () => {
+    const HOST = process.env.HOST || '0.0.0.0';
+    app.listen(PORT, HOST, () => {
       console.log(`====================================================`);
       console.log(`Laundryziva Backend Server is running!`);
+      console.log(`App Server Access: http://168.144.68.147:${PORT}`);
       console.log(`Local Access: http://localhost:${PORT}`);
-      console.log(`Health Check: http://localhost:${PORT}/api/health`);
+      console.log(`Health Check: http://168.144.68.147:${PORT}/api/health`);
       console.log(`====================================================`);
     });
   } catch (err) {
