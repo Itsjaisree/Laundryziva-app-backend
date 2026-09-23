@@ -10,6 +10,8 @@ router.post('/machines/', optionalAuth, machineController.createMachine);
 
 router.get('/fleet/summary', optionalAuth, machineController.getFleetSummary);
 
+router.get('/machines/:id', optionalAuth, machineController.getMachineById);
+
 router.put('/machines/:id', optionalAuth, machineController.updateMachine);
 router.delete('/machines/:id', optionalAuth, machineController.deleteMachine);
 

@@ -57,6 +57,20 @@ const getFleetSummary = async (req, res) => {
   }
 };
 
+const getMachineById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const machine = await get(`SELECT * FROM machines WHERE device_id = ?`, [id]);
+    if (!machine) {
+      return res.status(404).json({ error: 'Machine not found' });
+    }
+    return res.json({ machine });
+  } catch (err) {
+    console.error('getMachineById error:', err);
+    return res.status(500).json({ error: 'Failed to fetch machine' });
+  }
+};
+
 const createMachine = async (req, res) => {
   try {
     const { device_id, deviceId, friendly_name, friendlyName, location, meta_location, org_id } = req.body;
@@ -203,6 +217,7 @@ const toggleRelay = async (req, res) => {
 
 module.exports = {
   getMachines,
+  getMachineById,
   getFleetSummary,
   createMachine,
   updateMachine,

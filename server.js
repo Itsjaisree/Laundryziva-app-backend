@@ -14,6 +14,7 @@ const firmwareRoutes = require('./routes/firmwareRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const customerCareRoutes = require('./routes/customerCareRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
+const technicianRoutes = require('./routes/technicianRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -39,6 +40,7 @@ app.use('/api/firmware', firmwareRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/customercare', customerCareRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/technician', technicianRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {

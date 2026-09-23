@@ -77,6 +77,22 @@ const OWNER_PERMISSIONS = {
   view_service_logs: 'view',
 };
 
+const FIELD_OPERATIONS_PERMISSIONS = {
+  view_dashboard: 'view',
+  view_fleet_and_washing_button: 'view',
+  view_fleet_status: 'view',
+  view_device_identity_metrics: 'view',
+  view_relay_status: 'view',
+  view_service_history: 'view',
+  view_notifications: 'view',
+  view_service_logs: 'view',
+  machine_controls: 'write',
+  view_my_tasks: 'write',
+  submit_task_verification: 'write',
+};
+
+const FIELD_OPERATIONS_NOTIFICATION_TYPES = ['task_assigned', 'task_updated', 'machine_offline', 'maintenance', 'system'];
+
 const seedDatabase = async () => {
   console.log('Seeding initial data...');
 
@@ -111,9 +127,32 @@ const seedDatabase = async () => {
     }
   }
 
+  // Seed Field Operations (Technician) Permissions
+  for (const [key, mode] of Object.entries(FIELD_OPERATIONS_PERMISSIONS)) {
+    const existingPerm = await get(`SELECT * FROM permissions WHERE role_id = 'ROLE_FIELD_OPERATIONS' AND unit_key = ?`, [key]);
+    if (!existingPerm) {
+      await run(`
+        INSERT INTO permissions (role_id, unit_key, mode, is_granted)
+        VALUES ('ROLE_FIELD_OPERATIONS', ?, ?, 1);
+      `, [key, mode]);
+    }
+  }
+
+  // Seed Field Operations (Technician) Notification Type Preferences
+  for (const typeKey of FIELD_OPERATIONS_NOTIFICATION_TYPES) {
+    const existingType = await get(`SELECT * FROM notification_types WHERE role_id = 'ROLE_FIELD_OPERATIONS' AND type_key = ?`, [typeKey]);
+    if (!existingType) {
+      await run(`
+        INSERT INTO notification_types (role_id, type_key, is_enabled)
+        VALUES ('ROLE_FIELD_OPERATIONS', ?, 1);
+      `, [typeKey]);
+    }
+  }
+
   // 3. Seed Users
   const passwordHash = await bcrypt.hash('Owner@123', 10);
   const adminPasswordHash = await bcrypt.hash('Admin@123', 10);
+  const technicianPasswordHash = await bcrypt.hash('Technician@123', 10);
 
   const initialUsers = [
     {
@@ -147,6 +186,17 @@ const seedDatabase = async () => {
       role_id: 'ROLE_ORGANIZATION_OWNER',
       role_key: 'organization_owner',
       role_name: 'Organization Owner',
+      org_id: 'ORG_1637D16F',
+    },
+    {
+      id: 'USR_TECH_DEMO',
+      name: 'Arjun Kumar',
+      email: 'technician@demo.com',
+      phone: '9876543220',
+      passHash: technicianPasswordHash,
+      role_id: 'ROLE_FIELD_OPERATIONS',
+      role_key: 'field_operations',
+      role_name: 'Field Operations',
       org_id: 'ORG_1637D16F',
     },
   ];
@@ -361,6 +411,154 @@ const seedDatabase = async () => {
         INSERT INTO notifications (id, user_id, title, message, type, category, icon, is_read, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
       `, [n.id, n.user_id, n.title, n.message, n.type, n.category, n.icon, n.is_read, n.created_at]);
+    }
+  }
+
+  // 8. Seed Sample Technician Tasks
+  const dateOffset = (days) => {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
+  };
+
+  const sampleTasks = [
+    {
+      id: 'TASK_DEMO_001',
+      org_id: 'ORG_1637D16F',
+      technician_id: 'USR_TECH_DEMO',
+      technician_name: 'Arjun Kumar',
+      type: 'Installation',
+      title: 'Install new washer unit',
+      description: 'Install and commission a new washing machine unit at ABC Hostel.',
+      location: 'ABC Hostel, Room 101',
+      machine_id: 'TITAN_1020BA01D418',
+      machine_name: 'PG1 Washing Machine 1',
+      scheduled_date: dateOffset(0),
+      scheduled_time: '10:00 AM',
+      priority: 'High',
+      status: 'Assigned',
+    },
+    {
+      id: 'TASK_DEMO_002',
+      org_id: 'ORG_1637D16F',
+      technician_id: 'USR_TECH_DEMO',
+      technician_name: 'Arjun Kumar',
+      type: 'Troubleshooting',
+      title: 'Diagnose relay fault',
+      description: 'Investigate intermittent relay1 fault reported on heavy duty washer.',
+      location: 'XYZ Dorms, Block B',
+      machine_id: 'WM_PG2_102',
+      machine_name: 'PG2 Heavy Duty Washer',
+      scheduled_date: dateOffset(0),
+      scheduled_time: '2:00 PM',
+      priority: 'Medium',
+      status: 'In Progress',
+    },
+    {
+      id: 'TASK_DEMO_003',
+      org_id: 'ORG_1637D16F',
+      technician_id: 'USR_TECH_DEMO',
+      technician_name: 'Arjun Kumar',
+      type: 'Maintenance',
+      title: 'Routine inspection',
+      description: 'PG3 Express Dryer requires routine inspection.',
+      location: 'City Center PG, 1st Floor',
+      machine_id: 'DR_PG3_103',
+      machine_name: 'PG3 Express Dryer',
+      scheduled_date: dateOffset(1),
+      scheduled_time: '11:30 AM',
+      priority: 'Low',
+      status: 'Scheduled',
+    },
+    {
+      id: 'TASK_DEMO_004',
+      org_id: 'ORG_1637D16F',
+      technician_id: 'USR_TECH_DEMO',
+      technician_name: 'Arjun Kumar',
+      type: 'Repair',
+      title: 'Fix water inlet valve',
+      description: 'Replace faulty water inlet valve on PG1 Washing Machine.',
+      location: 'ABC Hostel, Room 101',
+      machine_id: 'TITAN_1020BA01D418',
+      machine_name: 'PG1 Washing Machine 1',
+      scheduled_date: dateOffset(-1),
+      scheduled_time: '9:00 AM',
+      priority: 'High',
+      status: 'Completed',
+      verification_photo_url: 'https://images.unsplash.com/photo-1582735689369-4fe89db7114c?auto=format&fit=crop&w=600&q=80',
+    },
+    {
+      id: 'TASK_DEMO_005',
+      org_id: 'ORG_1637D16F',
+      technician_id: 'USR_TECH_DEMO',
+      technician_name: 'Arjun Kumar',
+      type: 'Inspection',
+      title: 'Quarterly safety inspection',
+      description: 'Perform quarterly safety and compliance inspection on PG2 Heavy Duty Washer.',
+      location: 'XYZ Dorms, Block B',
+      machine_id: 'WM_PG2_102',
+      machine_name: 'PG2 Heavy Duty Washer',
+      scheduled_date: dateOffset(2),
+      scheduled_time: '3:30 PM',
+      priority: 'Medium',
+      status: 'Pending Approval',
+      change_request_type: 'Reschedule',
+      change_request_reason: 'Site access restricted until 4 PM.',
+      change_request_status: 'Pending',
+    },
+  ];
+
+  for (const t of sampleTasks) {
+    const existingTask = await get(`SELECT id FROM technician_tasks WHERE id = ?`, [t.id]);
+    if (!existingTask) {
+      const now = new Date().toISOString();
+      await run(`
+        INSERT INTO technician_tasks (
+          id, org_id, technician_id, technician_name, type, title, description, location,
+          machine_id, machine_name, scheduled_date, scheduled_time, priority, status,
+          verification_photo_url, change_request_type, change_request_reason, change_request_status,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+      `, [
+        t.id, t.org_id, t.technician_id, t.technician_name, t.type, t.title, t.description, t.location,
+        t.machine_id, t.machine_name, t.scheduled_date, t.scheduled_time, t.priority, t.status,
+        t.verification_photo_url || null, t.change_request_type || null, t.change_request_reason || null, t.change_request_status || null,
+        now, now,
+      ]);
+    }
+  }
+
+  // 9. Seed Sample Task Messages
+  const sampleTaskMessages = [
+    {
+      id: 'MSG_DEMO_001',
+      task_id: 'TASK_DEMO_002',
+      org_id: 'ORG_1637D16F',
+      sender_id: null,
+      sender_name: 'LaundryZiva Dispatch',
+      sender_role: 'system',
+      message: 'Welcome to LaundryZiva Customer Care. Let us know if you need anything for this job.',
+      is_system: 1,
+    },
+    {
+      id: 'MSG_DEMO_002',
+      task_id: 'TASK_DEMO_002',
+      org_id: 'ORG_1637D16F',
+      sender_id: 'USR_TECH_DEMO',
+      sender_name: 'Arjun Kumar',
+      sender_role: 'technician',
+      message: 'On site now, starting diagnosis on the relay fault.',
+      is_system: 0,
+    },
+  ];
+
+  for (const m of sampleTaskMessages) {
+    const existingMsg = await get(`SELECT id FROM task_messages WHERE id = ?`, [m.id]);
+    if (!existingMsg) {
+      await run(`
+        INSERT INTO task_messages (id, task_id, org_id, sender_id, sender_name, sender_role, message, is_system, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+      `, [m.id, m.task_id, m.org_id, m.sender_id, m.sender_name, m.sender_role, m.message, m.is_system, new Date().toISOString()]);
     }
   }
 

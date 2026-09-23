@@ -172,6 +172,57 @@ const initSchema = async () => {
     );
   `);
 
+  // Technician Tasks Table (work orders: installation/maintenance/repair/inspection jobs,
+  // distinct from customer_care_tickets which represent customer-reported complaints)
+  await run(`
+    CREATE TABLE IF NOT EXISTS technician_tasks (
+      id TEXT PRIMARY KEY,
+      org_id TEXT NOT NULL,
+      technician_id TEXT NOT NULL,
+      technician_name TEXT,
+      type TEXT NOT NULL DEFAULT 'Maintenance',
+      title TEXT NOT NULL,
+      description TEXT,
+      location TEXT,
+      machine_id TEXT,
+      machine_name TEXT,
+      scheduled_date TEXT,
+      scheduled_time TEXT,
+      priority TEXT DEFAULT 'Medium',
+      status TEXT DEFAULT 'Assigned',
+      arrival_photo_url TEXT,
+      verification_photo_url TEXT,
+      change_request_type TEXT,
+      change_request_reason TEXT,
+      change_request_status TEXT,
+      source_ticket_id TEXT,
+      created_by TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (technician_id) REFERENCES users (id),
+      FOREIGN KEY (machine_id) REFERENCES machines (device_id),
+      FOREIGN KEY (source_ticket_id) REFERENCES customer_care_tickets (id)
+    );
+  `);
+
+  // Task Messages Table (per-task chat thread between technician and dispatch/support)
+  await run(`
+    CREATE TABLE IF NOT EXISTS task_messages (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      org_id TEXT NOT NULL,
+      sender_id TEXT,
+      sender_name TEXT NOT NULL,
+      sender_role TEXT NOT NULL DEFAULT 'technician',
+      message TEXT,
+      voice_url TEXT,
+      photo_url TEXT,
+      is_system INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (task_id) REFERENCES technician_tasks (id) ON DELETE CASCADE
+    );
+  `);
+
   console.log('Database Schemas Initialized.');
 };
 

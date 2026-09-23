@@ -138,6 +138,77 @@ const runTests = async () => {
     const csvData = typeof analyticsExport.data === 'string' ? analyticsExport.data : JSON.stringify(analyticsExport.data);
     assert(analyticsExport.status === 200 && csvData.includes('Organization Analytics Summary Report'), 'Analytics Export CSV API (/api/analytics/export)');
 
+    // 14. Technician Login
+    const techLogin = await request('POST', '/api/auth/login', {
+      email: 'technician@demo.com',
+      password: 'Technician@123',
+    });
+    assert(techLogin.status === 200 && techLogin.data.access_token, 'Technician Login API (/api/auth/login)');
+    const techToken = techLogin.data.access_token;
+
+    // 15. Technician Tasks - List (mine)
+    const myTasks = await request('GET', '/api/technician/tasks', null, techToken);
+    assert(myTasks.status === 200 && Array.isArray(myTasks.data.tasks) && myTasks.data.tasks.length > 0, 'Technician Task Listing API (/api/technician/tasks)');
+
+    // 16. Technician Tasks - Get Single
+    const singleTask = await request('GET', '/api/technician/tasks/TASK_DEMO_001', null, techToken);
+    assert(singleTask.status === 200 && singleTask.data.task?.id === 'TASK_DEMO_001', 'Technician Task Detail API (/api/technician/tasks/:id)');
+
+    // 17. Technician Tasks - Start
+    const startedTask = await request('POST', '/api/technician/tasks/TASK_DEMO_001/start', null, techToken);
+    assert(startedTask.status === 200 && startedTask.data.task?.status === 'In Progress', 'Technician Task Start API (/api/technician/tasks/:id/start)');
+
+    // 18. Technician Tasks - Complete with verification photo
+    const completedTask = await request('POST', '/api/technician/tasks/TASK_DEMO_001/complete', {
+      verification_photo_url: 'https://example.com/verification-test.jpg',
+    }, techToken);
+    assert(
+      completedTask.status === 200 &&
+      completedTask.data.task?.status === 'Completed' &&
+      completedTask.data.task?.verification_photo_url === 'https://example.com/verification-test.jpg',
+      'Technician Task Complete API (/api/technician/tasks/:id/complete)'
+    );
+
+    // 19. Technician Tasks - Change Request
+    const changeReq = await request('POST', '/api/technician/tasks/TASK_DEMO_003/change-request', {
+      type: 'Reschedule',
+      reason: 'Integration test reason',
+    }, techToken);
+    assert(
+      changeReq.status === 200 && changeReq.data.task?.change_request_status === 'Pending',
+      'Technician Task Change Request API (/api/technician/tasks/:id/change-request)'
+    );
+
+    // 20. Task Messages - auto-logged from change request
+    const changeReqMessages = await request('GET', '/api/technician/tasks/TASK_DEMO_003/messages', null, techToken);
+    assert(
+      changeReqMessages.status === 200 && changeReqMessages.data.messages.length >= 2,
+      'Task Messages Auto-Logged on Change Request (/api/technician/tasks/:id/messages)'
+    );
+
+    // 21. Task Messages - Post & Verify Persistence (incl. auto-reply)
+    const postedMessage = await request('POST', '/api/technician/tasks/TASK_DEMO_002/messages', {
+      message: 'Integration test message',
+    }, techToken);
+    assert(postedMessage.status === 201 && postedMessage.data.task_message?.message === 'Integration test message', 'Post Task Message API (/api/technician/tasks/:id/messages)');
+
+    const taskMessages = await request('GET', '/api/technician/tasks/TASK_DEMO_002/messages', null, techToken);
+    assert(
+      taskMessages.status === 200 && taskMessages.data.messages.some(m => m.message === 'Integration test message'),
+      'Verified Posted Task Message Persisted in DB'
+    );
+    assert(
+      taskMessages.data.messages.some(m => m.is_system === 1 && m.message === 'An agent will review your message shortly.'),
+      'Verified Auto-Reply System Message Persisted in DB'
+    );
+
+    // 22. Machine Single Lookup
+    const singleMachine = await request('GET', '/api/machines/TITAN_1020BA01D418', null, token);
+    assert(singleMachine.status === 200 && singleMachine.data.machine?.device_id === 'TITAN_1020BA01D418', 'Machine Single Lookup API (/api/machines/:id)');
+
+    const missingMachine = await request('GET', '/api/machines/NON_EXISTENT_DEVICE', null, token);
+    assert(missingMachine.status === 404, 'Machine Single Lookup 404 for unknown device');
+
     console.log(`\n----------------------------------------------------`);
     console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
     console.log(`----------------------------------------------------\n`);
