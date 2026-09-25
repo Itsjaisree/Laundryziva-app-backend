@@ -154,6 +154,8 @@ const seedDatabase = async () => {
   const adminPasswordHash = await bcrypt.hash('Admin@123', 10);
   const technicianPasswordHash = await bcrypt.hash('Technician@123', 10);
 
+  const customerCarePasswordHash = await bcrypt.hash('CustomerCare@123', 10);
+
   const initialUsers = [
     {
       id: 'USR_28550797',
@@ -199,6 +201,17 @@ const seedDatabase = async () => {
       role_name: 'Field Operations',
       org_id: 'ORG_1637D16F',
     },
+    {
+      id: 'USR_CARE_DEMO',
+      name: 'Customer Care Agent',
+      email: 'customercare@demo.com',
+      phone: '9876543230',
+      passHash: customerCarePasswordHash,
+      role_id: 'ROLE_SUPPORT_REFUND_AGENT',
+      role_key: 'support_refund_agent',
+      role_name: 'Support & Refund Agent',
+      org_id: 'ORG_1637D16F',
+    },
   ];
 
   for (const u of initialUsers) {
@@ -211,48 +224,20 @@ const seedDatabase = async () => {
     }
   }
 
-  // 4. Seed Sample Machines
+  // 4. Seed Real Machine
   const sampleMachines = [
     {
       device_id: 'TITAN_1020BA01D418',
       friendly_name: 'PG1 Washing Machine 1',
       location: 'ABC Hostel, Room 101',
       health_status: 'ONLINE',
-      state: 'WASHING',
-      wash_remaining_seconds: 1200,
-      wash_total_seconds: 3540,
-      relay1: 1,
-      relay2: 0,
-      firmware_version: 'v2.1.0',
-      gsm_signal: 31,
-      org_id: 'ORG_1637D16F',
-    },
-    {
-      device_id: 'WM_PG2_102',
-      friendly_name: 'PG2 Heavy Duty Washer',
-      location: 'XYZ Dorms, Block B',
-      health_status: 'ONLINE',
       state: 'IDLE',
       wash_remaining_seconds: 0,
       wash_total_seconds: 0,
       relay1: 0,
       relay2: 0,
-      firmware_version: 'v2.1.0',
-      gsm_signal: 28,
-      org_id: 'ORG_1637D16F',
-    },
-    {
-      device_id: 'DR_PG3_103',
-      friendly_name: 'PG3 Express Dryer',
-      location: 'City Center PG, 1st Floor',
-      health_status: 'OFFLINE',
-      state: 'MAINTENANCE',
-      wash_remaining_seconds: 0,
-      wash_total_seconds: 0,
-      relay1: 0,
-      relay2: 0,
-      firmware_version: 'v1.9.4',
-      gsm_signal: 12,
+      firmware_version: '5.3.2',
+      gsm_signal: 23,
       org_id: 'ORG_1637D16F',
     },
   ];
@@ -274,7 +259,7 @@ const seedDatabase = async () => {
     }
   }
 
-  // 5. Seed Sample Transactions
+  // 5. Seed Real Machine Transactions
   const sampleTxns = [
     {
       txn_id: 'TXN_9874101',
@@ -283,24 +268,6 @@ const seedDatabase = async () => {
       amount: 97,
       status: 'SUCCESS',
       razorpay_id: 'pay_P9874101',
-      org_id: 'ORG_1637D16F',
-    },
-    {
-      txn_id: 'TXN_9874102',
-      machine_name: 'PG2 Heavy Duty Washer',
-      device_id: 'WM_PG2_102',
-      amount: 120,
-      status: 'SUCCESS',
-      razorpay_id: 'pay_P9874102',
-      org_id: 'ORG_1637D16F',
-    },
-    {
-      txn_id: 'TXN_9874103',
-      machine_name: 'PG3 Express Dryer',
-      device_id: 'DR_PG3_103',
-      amount: 60,
-      status: 'FAILED',
-      razorpay_id: 'pay_P9874103',
       org_id: 'ORG_1637D16F',
     },
   ];
@@ -315,20 +282,12 @@ const seedDatabase = async () => {
     }
   }
 
-  // 6. Seed Sample Deployments
+  // 6. Seed Real Machine Deployments
   const sampleDeployments = [
     {
       id: 'DEP-1092',
       device_id: 'TITAN_1020BA01D418',
-      firmware_version: '5.0.0',
-      previous_version: '4.8.2',
-      status: 'success',
-      org_id: 'ORG_1637D16F',
-    },
-    {
-      id: 'DEP-1091',
-      device_id: 'TITAN_1020BA01D419',
-      firmware_version: '5.0.0',
+      firmware_version: '5.3.2',
       previous_version: '4.8.2',
       status: 'success',
       org_id: 'ORG_1637D16F',

@@ -101,12 +101,33 @@ const createTask = async (req, res) => {
 const startTask = async (req, res) => {
   try {
     const { id } = req.params;
+    const { arrival_photo_url, before_photos } = req.body;
+
     const task = await get(`SELECT id FROM technician_tasks WHERE id = ?`, [id]);
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
     }
 
-    await run(`UPDATE technician_tasks SET status = 'In Progress', updated_at = ? WHERE id = ?`, [new Date().toISOString(), id]);
+    let beforePhotosJson = null;
+    let primaryArrivalPhoto = arrival_photo_url || null;
+
+    if (Array.isArray(before_photos)) {
+      beforePhotosJson = JSON.stringify(before_photos);
+      if (!primaryArrivalPhoto && before_photos.length > 0) {
+        primaryArrivalPhoto = typeof before_photos[0] === 'string' ? before_photos[0] : before_photos[0]?.uri;
+      }
+    } else if (typeof before_photos === 'string') {
+      beforePhotosJson = before_photos;
+    } else if (arrival_photo_url) {
+      beforePhotosJson = JSON.stringify([arrival_photo_url]);
+    }
+
+    await run(`
+      UPDATE technician_tasks 
+      SET status = 'In Progress', arrival_photo_url = ?, before_photos = ?, updated_at = ? 
+      WHERE id = ?
+    `, [primaryArrivalPhoto, beforePhotosJson, new Date().toISOString(), id]);
+
     const updated = await get(`SELECT * FROM technician_tasks WHERE id = ?`, [id]);
     return res.json({ message: 'Task started', task: updated });
   } catch (err) {
@@ -119,22 +140,93 @@ const startTask = async (req, res) => {
 const completeTask = async (req, res) => {
   try {
     const { id } = req.params;
-    const { verification_photo_url } = req.body;
+    const { verification_photo_url, after_photos } = req.body;
 
     const task = await get(`SELECT id FROM technician_tasks WHERE id = ?`, [id]);
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
     }
 
+    let afterPhotosJson = null;
+    let primaryVerificationPhoto = verification_photo_url || null;
+
+    if (Array.isArray(after_photos)) {
+      afterPhotosJson = JSON.stringify(after_photos);
+      if (!primaryVerificationPhoto && after_photos.length > 0) {
+        primaryVerificationPhoto = typeof after_photos[0] === 'string' ? after_photos[0] : after_photos[0]?.uri;
+      }
+    } else if (typeof after_photos === 'string') {
+      afterPhotosJson = after_photos;
+    } else if (verification_photo_url) {
+      afterPhotosJson = JSON.stringify([verification_photo_url]);
+    }
+
     await run(`
-      UPDATE technician_tasks SET status = 'Completed', verification_photo_url = ?, updated_at = ? WHERE id = ?
-    `, [verification_photo_url || null, new Date().toISOString(), id]);
+      UPDATE technician_tasks 
+      SET status = 'Completed', verification_photo_url = ?, after_photos = ?, updated_at = ? 
+      WHERE id = ?
+    `, [primaryVerificationPhoto, afterPhotosJson, new Date().toISOString(), id]);
 
     const updated = await get(`SELECT * FROM technician_tasks WHERE id = ?`, [id]);
     return res.json({ message: 'Task marked completed', task: updated });
   } catch (err) {
     console.error('completeTask error:', err);
     return res.status(500).json({ error: 'Failed to complete task' });
+  }
+};
+
+// POST /api/technician/tasks/:id/photos
+const updateTaskPhotos = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { before_photos, after_photos } = req.body;
+
+    const task = await get(`SELECT id, before_photos, after_photos FROM technician_tasks WHERE id = ?`, [id]);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    let beforePhotosJson = task.before_photos;
+    if (before_photos !== undefined) {
+      beforePhotosJson = Array.isArray(before_photos) ? JSON.stringify(before_photos) : before_photos;
+    }
+
+    let afterPhotosJson = task.after_photos;
+    if (after_photos !== undefined) {
+      afterPhotosJson = Array.isArray(after_photos) ? JSON.stringify(after_photos) : after_photos;
+    }
+
+    let firstBefore = null;
+    if (beforePhotosJson) {
+      try {
+        const parsed = JSON.parse(beforePhotosJson);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          firstBefore = typeof parsed[0] === 'string' ? parsed[0] : parsed[0]?.uri;
+        }
+      } catch (e) {}
+    }
+
+    let firstAfter = null;
+    if (afterPhotosJson) {
+      try {
+        const parsed = JSON.parse(afterPhotosJson);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          firstAfter = typeof parsed[0] === 'string' ? parsed[0] : parsed[0]?.uri;
+        }
+      } catch (e) {}
+    }
+
+    await run(`
+      UPDATE technician_tasks 
+      SET before_photos = ?, after_photos = ?, arrival_photo_url = COALESCE(?, arrival_photo_url), verification_photo_url = COALESCE(?, verification_photo_url), updated_at = ? 
+      WHERE id = ?
+    `, [beforePhotosJson, afterPhotosJson, firstBefore, firstAfter, new Date().toISOString(), id]);
+
+    const updated = await get(`SELECT * FROM technician_tasks WHERE id = ?`, [id]);
+    return res.json({ message: 'Task photos updated', task: updated });
+  } catch (err) {
+    console.error('updateTaskPhotos error:', err);
+    return res.status(500).json({ error: 'Failed to update task photos' });
   }
 };
 
@@ -242,6 +334,7 @@ module.exports = {
   createTask,
   startTask,
   completeTask,
+  updateTaskPhotos,
   requestTaskChange,
   getTaskMessages,
   postTaskMessage,

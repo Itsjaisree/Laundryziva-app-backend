@@ -6,5 +6,6 @@ const { optionalAuth } = require('../middleware/auth');
 router.get('/', optionalAuth, notificationController.getNotifications);
 router.put('/read-all', optionalAuth, notificationController.markAllAsRead);
 router.put('/:id/read', optionalAuth, notificationController.markAsRead);
+router.post('/system-alert', optionalAuth, notificationController.createSystemAlert);
 
 module.exports = router;

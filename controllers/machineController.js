@@ -1,7 +1,9 @@
 const { run, get, all } = require('../config/db');
+const { syncLiveDeviceStates } = require('../services/deviceServerService');
 
 const getMachines = async (req, res) => {
   try {
+    await syncLiveDeviceStates();
     const orgId = req.query.org_id || req.user?.org_id;
     let sql = `SELECT * FROM machines`;
     const params = [];
@@ -23,6 +25,7 @@ const getMachines = async (req, res) => {
 
 const getFleetSummary = async (req, res) => {
   try {
+    await syncLiveDeviceStates();
     const orgId = req.query.org_id || req.user?.org_id;
     let sql = `SELECT * FROM machines`;
     const params = [];
@@ -60,6 +63,9 @@ const getFleetSummary = async (req, res) => {
 const getMachineById = async (req, res) => {
   try {
     const { id } = req.params;
+    if (id === 'TITAN_1020BA01D418') {
+      await syncLiveDeviceStates();
+    }
     const machine = await get(`SELECT * FROM machines WHERE device_id = ?`, [id]);
     if (!machine) {
       return res.status(404).json({ error: 'Machine not found' });

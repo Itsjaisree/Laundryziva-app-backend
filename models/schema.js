@@ -192,6 +192,8 @@ const initSchema = async () => {
       status TEXT DEFAULT 'Assigned',
       arrival_photo_url TEXT,
       verification_photo_url TEXT,
+      before_photos TEXT,
+      after_photos TEXT,
       change_request_type TEXT,
       change_request_reason TEXT,
       change_request_status TEXT,
@@ -204,6 +206,18 @@ const initSchema = async () => {
       FOREIGN KEY (source_ticket_id) REFERENCES customer_care_tickets (id)
     );
   `);
+
+  // Migrations for existing databases
+  try {
+    await run(`ALTER TABLE technician_tasks ADD COLUMN before_photos TEXT;`);
+  } catch (e) {
+    // Column already exists
+  }
+  try {
+    await run(`ALTER TABLE technician_tasks ADD COLUMN after_photos TEXT;`);
+  } catch (e) {
+    // Column already exists
+  }
 
   // Task Messages Table (per-task chat thread between technician and dispatch/support)
   await run(`

@@ -80,7 +80,7 @@ const runTests = async () => {
 
     // 5. Fleet Summary
     const fleet = await request('GET', '/api/fleet/summary', null, token);
-    assert(fleet.status === 200 && fleet.data.total_devices >= 3, 'Fleet Summary API (/api/fleet/summary)');
+    assert(fleet.status === 200 && fleet.data.total_devices >= 1, 'Fleet Summary API (/api/fleet/summary)');
 
     // 6. Machines List
     const machines = await request('GET', '/api/machines/', null, token);
