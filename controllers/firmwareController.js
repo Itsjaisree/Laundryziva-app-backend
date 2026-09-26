@@ -27,6 +27,29 @@ const getDeploymentHistory = async (req, res) => {
   }
 };
 
+const createDeployment = async (req, res) => {
+  try {
+    const { version, description, org_id } = req.body;
+
+    if (!version) {
+      return res.status(400).json({ error: 'Version is required' });
+    }
+
+    const { run, get } = require('../config/db');
+    const result = await run(
+      `INSERT INTO deployments (version, description, org_id, deployed_at) VALUES (?, ?, ?, datetime('now'))`,
+      [version, description || null, org_id || req.user?.org_id || null]
+    );
+
+    const deployment = await get(`SELECT * FROM deployments WHERE id = ?`, [result.lastID]);
+    return res.status(201).json({ deployment });
+  } catch (err) {
+    console.error('createDeployment error:', err);
+    return res.status(500).json({ error: 'Failed to create deployment' });
+  }
+};
+
 module.exports = {
   getDeploymentHistory,
+  createDeployment,
 };

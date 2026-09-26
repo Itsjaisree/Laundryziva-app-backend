@@ -179,39 +179,8 @@ const seedDatabase = async () => {
       role_name: 'Organization Owner',
       org_id: 'ORG_1637D16F',
     },
-    {
-      id: 'USR_ORG_OWNER_DEMO',
-      name: 'Demo Owner',
-      email: 'owner@demo.com',
-      phone: '9876543210',
-      passHash: passwordHash,
-      role_id: 'ROLE_ORGANIZATION_OWNER',
-      role_key: 'organization_owner',
-      role_name: 'Organization Owner',
-      org_id: 'ORG_1637D16F',
-    },
-    {
-      id: 'USR_TECH_DEMO',
-      name: 'Arjun Kumar',
-      email: 'technician@demo.com',
-      phone: '9876543220',
-      passHash: technicianPasswordHash,
-      role_id: 'ROLE_FIELD_OPERATIONS',
-      role_key: 'field_operations',
-      role_name: 'Field Operations',
-      org_id: 'ORG_1637D16F',
-    },
-    {
-      id: 'USR_CARE_DEMO',
-      name: 'Customer Care Agent',
-      email: 'customercare@demo.com',
-      phone: '9876543230',
-      passHash: customerCarePasswordHash,
-      role_id: 'ROLE_SUPPORT_REFUND_AGENT',
-      role_key: 'support_refund_agent',
-      role_name: 'Support & Refund Agent',
-      org_id: 'ORG_1637D16F',
-    },
+    // NOTE: Demo users (owner@demo.com, technician@demo.com, customercare@demo.com) have been removed.
+    // Only real system users are seeded here.
   ];
 
   for (const u of initialUsers) {
@@ -224,25 +193,28 @@ const seedDatabase = async () => {
     }
   }
 
-  // 4. Seed Real Machine
-  const sampleMachines = [
+
+  // 4. Seed Real Machine (TITAN_1020BA01D418 only — registered on Device Server)
+  // NOTE: WM_PG2_102 and DR_PG3_103 were demo/sample machines and have been removed.
+  // Only the real registered machine is seeded here.
+  const realMachines = [
     {
       device_id: 'TITAN_1020BA01D418',
       friendly_name: 'PG1 Washing Machine 1',
       location: 'ABC Hostel, Room 101',
-      health_status: 'ONLINE',
+      health_status: 'OFFLINE',
       state: 'IDLE',
       wash_remaining_seconds: 0,
       wash_total_seconds: 0,
       relay1: 0,
       relay2: 0,
       firmware_version: '5.3.2',
-      gsm_signal: 23,
+      gsm_signal: 0,
       org_id: 'ORG_1637D16F',
     },
   ];
 
-  for (const m of sampleMachines) {
+  for (const m of realMachines) {
     const existingMachine = await get(`SELECT * FROM machines WHERE device_id = ?`, [m.device_id]);
     if (!existingMachine) {
       await run(`
@@ -259,28 +231,9 @@ const seedDatabase = async () => {
     }
   }
 
-  // 5. Seed Real Machine Transactions
-  const sampleTxns = [
-    {
-      txn_id: 'TXN_9874101',
-      machine_name: 'PG1 Washing Machine 1',
-      device_id: 'TITAN_1020BA01D418',
-      amount: 97,
-      status: 'SUCCESS',
-      razorpay_id: 'pay_P9874101',
-      org_id: 'ORG_1637D16F',
-    },
-  ];
+  // 5. Transactions: NOT seeded — transactions are created by real payment events only.
+  // No demo/sample transactions should appear in the application.
 
-  for (const t of sampleTxns) {
-    const existingTxn = await get(`SELECT * FROM transactions WHERE txn_id = ?`, [t.txn_id]);
-    if (!existingTxn) {
-      await run(`
-        INSERT INTO transactions (txn_id, machine_name, device_id, amount, status, razorpay_id, org_id, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-      `, [t.txn_id, t.machine_name, t.device_id, t.amount, t.status, t.razorpay_id, t.org_id, new Date().toISOString()]);
-    }
-  }
 
   // 6. Seed Real Machine Deployments
   const sampleDeployments = [
@@ -304,222 +257,14 @@ const seedDatabase = async () => {
     }
   }
 
-  // 7. Seed Sample Notifications
-  const sampleNotifications = [
-    {
-      id: 'NOTIF_1001',
-      user_id: null,
-      title: 'Machine Offline Alert',
-      message: 'PG2 Washing Machine went offline at ABC Hostel, Room 101.',
-      type: 'offline',
-      category: 'warning',
-      icon: 'alert-circle',
-      is_read: 0,
-      created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-    },
-    {
-      id: 'NOTIF_1002',
-      user_id: null,
-      title: 'Payment Received',
-      message: '₹97 received successfully from PG1 Washing Machine.',
-      type: 'payment',
-      category: 'info',
-      icon: 'cash',
-      is_read: 0,
-      created_at: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-    },
-    {
-      id: 'NOTIF_1003',
-      user_id: null,
-      title: 'Technician Added',
-      message: 'Arjun Kumar has been registered as a Technician.',
-      type: 'user',
-      category: 'info',
-      icon: 'person-add',
-      is_read: 1,
-      created_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: 'NOTIF_1004',
-      user_id: null,
-      title: 'Maintenance Required',
-      message: 'PG3 Express Dryer requires routine inspection.',
-      type: 'maintenance',
-      category: 'warning',
-      icon: 'build',
-      is_read: 1,
-      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: 'NOTIF_1005',
-      user_id: null,
-      title: 'System Update',
-      message: 'The organization portal was updated successfully.',
-      type: 'system',
-      category: 'info',
-      icon: 'information-circle',
-      is_read: 1,
-      created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    },
-  ];
+  // 7. Notifications: NOT seeded — notifications are generated by real system events only.
+  // No demo/sample notifications should appear in the application.
 
-  for (const n of sampleNotifications) {
-    const existingNotif = await get(`SELECT * FROM notifications WHERE id = ?`, [n.id]);
-    if (!existingNotif) {
-      await run(`
-        INSERT INTO notifications (id, user_id, title, message, type, category, icon, is_read, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-      `, [n.id, n.user_id, n.title, n.message, n.type, n.category, n.icon, n.is_read, n.created_at]);
-    }
-  }
+  // 8. Technician Tasks: NOT seeded — tasks are created by real workflow assignments only.
+  // No demo/sample tasks should appear in the application.
 
-  // 8. Seed Sample Technician Tasks
-  const dateOffset = (days) => {
-    const d = new Date();
-    d.setDate(d.getDate() + days);
-    return d.toISOString().split('T')[0];
-  };
-
-  const sampleTasks = [
-    {
-      id: 'TASK_DEMO_001',
-      org_id: 'ORG_1637D16F',
-      technician_id: 'USR_TECH_DEMO',
-      technician_name: 'Arjun Kumar',
-      type: 'Installation',
-      title: 'Install new washer unit',
-      description: 'Install and commission a new washing machine unit at ABC Hostel.',
-      location: 'ABC Hostel, Room 101',
-      machine_id: 'TITAN_1020BA01D418',
-      machine_name: 'PG1 Washing Machine 1',
-      scheduled_date: dateOffset(0),
-      scheduled_time: '10:00 AM',
-      priority: 'High',
-      status: 'Assigned',
-    },
-    {
-      id: 'TASK_DEMO_002',
-      org_id: 'ORG_1637D16F',
-      technician_id: 'USR_TECH_DEMO',
-      technician_name: 'Arjun Kumar',
-      type: 'Troubleshooting',
-      title: 'Diagnose relay fault',
-      description: 'Investigate intermittent relay1 fault reported on heavy duty washer.',
-      location: 'XYZ Dorms, Block B',
-      machine_id: 'WM_PG2_102',
-      machine_name: 'PG2 Heavy Duty Washer',
-      scheduled_date: dateOffset(0),
-      scheduled_time: '2:00 PM',
-      priority: 'Medium',
-      status: 'In Progress',
-    },
-    {
-      id: 'TASK_DEMO_003',
-      org_id: 'ORG_1637D16F',
-      technician_id: 'USR_TECH_DEMO',
-      technician_name: 'Arjun Kumar',
-      type: 'Maintenance',
-      title: 'Routine inspection',
-      description: 'PG3 Express Dryer requires routine inspection.',
-      location: 'City Center PG, 1st Floor',
-      machine_id: 'DR_PG3_103',
-      machine_name: 'PG3 Express Dryer',
-      scheduled_date: dateOffset(1),
-      scheduled_time: '11:30 AM',
-      priority: 'Low',
-      status: 'Scheduled',
-    },
-    {
-      id: 'TASK_DEMO_004',
-      org_id: 'ORG_1637D16F',
-      technician_id: 'USR_TECH_DEMO',
-      technician_name: 'Arjun Kumar',
-      type: 'Repair',
-      title: 'Fix water inlet valve',
-      description: 'Replace faulty water inlet valve on PG1 Washing Machine.',
-      location: 'ABC Hostel, Room 101',
-      machine_id: 'TITAN_1020BA01D418',
-      machine_name: 'PG1 Washing Machine 1',
-      scheduled_date: dateOffset(-1),
-      scheduled_time: '9:00 AM',
-      priority: 'High',
-      status: 'Completed',
-      verification_photo_url: 'https://images.unsplash.com/photo-1582735689369-4fe89db7114c?auto=format&fit=crop&w=600&q=80',
-    },
-    {
-      id: 'TASK_DEMO_005',
-      org_id: 'ORG_1637D16F',
-      technician_id: 'USR_TECH_DEMO',
-      technician_name: 'Arjun Kumar',
-      type: 'Inspection',
-      title: 'Quarterly safety inspection',
-      description: 'Perform quarterly safety and compliance inspection on PG2 Heavy Duty Washer.',
-      location: 'XYZ Dorms, Block B',
-      machine_id: 'WM_PG2_102',
-      machine_name: 'PG2 Heavy Duty Washer',
-      scheduled_date: dateOffset(2),
-      scheduled_time: '3:30 PM',
-      priority: 'Medium',
-      status: 'Pending Approval',
-      change_request_type: 'Reschedule',
-      change_request_reason: 'Site access restricted until 4 PM.',
-      change_request_status: 'Pending',
-    },
-  ];
-
-  for (const t of sampleTasks) {
-    const existingTask = await get(`SELECT id FROM technician_tasks WHERE id = ?`, [t.id]);
-    if (!existingTask) {
-      const now = new Date().toISOString();
-      await run(`
-        INSERT INTO technician_tasks (
-          id, org_id, technician_id, technician_name, type, title, description, location,
-          machine_id, machine_name, scheduled_date, scheduled_time, priority, status,
-          verification_photo_url, change_request_type, change_request_reason, change_request_status,
-          created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-      `, [
-        t.id, t.org_id, t.technician_id, t.technician_name, t.type, t.title, t.description, t.location,
-        t.machine_id, t.machine_name, t.scheduled_date, t.scheduled_time, t.priority, t.status,
-        t.verification_photo_url || null, t.change_request_type || null, t.change_request_reason || null, t.change_request_status || null,
-        now, now,
-      ]);
-    }
-  }
-
-  // 9. Seed Sample Task Messages
-  const sampleTaskMessages = [
-    {
-      id: 'MSG_DEMO_001',
-      task_id: 'TASK_DEMO_002',
-      org_id: 'ORG_1637D16F',
-      sender_id: null,
-      sender_name: 'LaundryZiva Dispatch',
-      sender_role: 'system',
-      message: 'Welcome to LaundryZiva Customer Care. Let us know if you need anything for this job.',
-      is_system: 1,
-    },
-    {
-      id: 'MSG_DEMO_002',
-      task_id: 'TASK_DEMO_002',
-      org_id: 'ORG_1637D16F',
-      sender_id: 'USR_TECH_DEMO',
-      sender_name: 'Arjun Kumar',
-      sender_role: 'technician',
-      message: 'On site now, starting diagnosis on the relay fault.',
-      is_system: 0,
-    },
-  ];
-
-  for (const m of sampleTaskMessages) {
-    const existingMsg = await get(`SELECT id FROM task_messages WHERE id = ?`, [m.id]);
-    if (!existingMsg) {
-      await run(`
-        INSERT INTO task_messages (id, task_id, org_id, sender_id, sender_name, sender_role, message, is_system, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-      `, [m.id, m.task_id, m.org_id, m.sender_id, m.sender_name, m.sender_role, m.message, m.is_system, new Date().toISOString()]);
-    }
-  }
+  // 9. Task Messages: NOT seeded — task messages are created by real user interactions only.
+  // No demo/sample task messages should appear in the application.
 
   console.log('Seeding Complete.');
 };

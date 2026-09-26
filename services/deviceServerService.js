@@ -1,7 +1,7 @@
 const https = require('https');
 const { run, get } = require('../config/db');
 
-const DEVICE_SERVER_HOST = process.env.DEVICE_SERVER_HOST || 'uat.upiziva.com';
+const DEVICE_SERVER_HOST = process.env.DEVICE_SERVER_HOST || 'data.upiziva.com';
 const DEVICE_SERVER_PATH = process.env.DEVICE_SERVER_PATH || '/api/device/states';
 const DEVICE_SERVER_API_KEY = process.env.DEVICE_SERVER_API_KEY || 'dev_test_key_12345';
 

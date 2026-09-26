@@ -45,8 +45,35 @@ const resolveTicket = async (req, res) => {
   }
 };
 
+const createTicket = async (req, res) => {
+  try {
+    const { machine_id, machine_name, issue, priority, customer_name, customer_phone, org_id } = req.body;
+
+    if (!issue) {
+      return res.status(400).json({ error: 'Issue description is required' });
+    }
+
+    const ticketId = `TKT_${Date.now()}`;
+    const createdAt = new Date().toISOString();
+
+    await run(
+      `INSERT INTO customer_care_tickets (id, machine_id, machine_name, issue, priority, customer_name, customer_phone, org_id, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Open', ?)`,
+      [ticketId, machine_id || null, machine_name || null, issue, priority || 'Medium',
+       customer_name || null, customer_phone || null, org_id || req.user?.org_id || null, createdAt]
+    );
+
+    const ticket = await get(`SELECT * FROM customer_care_tickets WHERE id = ?`, [ticketId]);
+    return res.status(201).json({ ticket });
+  } catch (err) {
+    console.error('createTicket error:', err);
+    return res.status(500).json({ error: 'Failed to create ticket' });
+  }
+};
+
 module.exports = {
   getTickets,
+  createTicket,
   reassignTicket,
   resolveTicket,
 };

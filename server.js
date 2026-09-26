@@ -57,7 +57,7 @@ const startServer = async () => {
     await syncLiveDeviceStates();
     setInterval(syncLiveDeviceStates, 15000);
 
-    app.listen(PORT, '0.0.0.0', () => {
+    app.listen(PORT, 'localhost', () => {
       console.log(`====================================================`);
       console.log(`Laundryziva Backend Server is running!`);
       console.log(`Local Access: http://localhost:${PORT}`);

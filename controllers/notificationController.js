@@ -51,8 +51,34 @@ const markAllAsRead = async (req, res) => {
   }
 };
 
+const createSystemAlert = async (req, res) => {
+  try {
+    const { title, message, type, category, icon, org_id } = req.body;
+
+    if (!title || !message) {
+      return res.status(400).json({ error: 'Title and message are required' });
+    }
+
+    const alertId = `NOTIF_${Date.now()}`;
+    const createdAt = new Date().toISOString();
+
+    await run(
+      `INSERT INTO notifications (id, title, message, type, category, icon, org_id, is_read, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+      [alertId, title, message, type || 'system', category || 'info', icon || 'alert-circle-outline', org_id || null, createdAt]
+    );
+
+    const notification = await get(`SELECT * FROM notifications WHERE id = ?`, [alertId]);
+    return res.status(201).json({ notification });
+  } catch (err) {
+    console.error('createSystemAlert error:', err);
+    return res.status(500).json({ error: 'Failed to create system alert' });
+  }
+};
+
 module.exports = {
   getNotifications,
   markAsRead,
   markAllAsRead,
+  createSystemAlert,
 };
