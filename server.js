@@ -27,8 +27,21 @@ app.set('trust proxy', 1);
 
 app.use(helmet());
 
-// Enable CORS for frontend clients
-app.use(cors());
+// Enable CORS only for known web origins. Native mobile requests (React Native / Expo Go)
+// don't send an Origin header at all and are unaffected by this restriction.
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://app.upiziva.com,http://localhost:8081,http://localhost:19006')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

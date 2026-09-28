@@ -282,6 +282,23 @@ const initSchema = async () => {
     );
   `);
 
+  // Revoked Tokens Table (JWT logout / invalidation)
+  await run(`
+    CREATE TABLE IF NOT EXISTS revoked_tokens (
+      jti TEXT PRIMARY KEY,
+      expires_at TEXT NOT NULL
+    );
+  `);
+
+  // Account lockout columns on users (added via migration since table may pre-exist)
+  const userCols = await all(`PRAGMA table_info(users)`);
+  if (!userCols.find((c) => c.name === 'failed_login_attempts')) {
+    await run(`ALTER TABLE users ADD COLUMN failed_login_attempts INTEGER DEFAULT 0;`);
+  }
+  if (!userCols.find((c) => c.name === 'locked_until')) {
+    await run(`ALTER TABLE users ADD COLUMN locked_until TEXT;`);
+  }
+
   console.log('Database Schemas Initialized.');
 };
 

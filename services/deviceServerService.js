@@ -3,12 +3,19 @@ const { run, get } = require('../config/db');
 
 const DEVICE_SERVER_HOST = process.env.DEVICE_SERVER_HOST || 'data.upiziva.com';
 const DEVICE_SERVER_PATH = process.env.DEVICE_SERVER_PATH || '/api/device/states';
-const DEVICE_SERVER_API_KEY = process.env.DEVICE_SERVER_API_KEY || 'dev_test_key_12345';
+const DEVICE_SERVER_API_KEY = process.env.DEVICE_SERVER_API_KEY || '';
+
+if (!DEVICE_SERVER_API_KEY) {
+  console.warn('DEVICE_SERVER_API_KEY is not set — live device state sync is disabled.');
+}
 
 /**
  * Fetches live device state array directly from the upstream Device Server at uat.upiziva.com
  */
 const fetchDeviceStatesFromDeviceServer = () => {
+  if (!DEVICE_SERVER_API_KEY) {
+    return Promise.resolve(null);
+  }
   return new Promise((resolve) => {
     const options = {
       hostname: DEVICE_SERVER_HOST,

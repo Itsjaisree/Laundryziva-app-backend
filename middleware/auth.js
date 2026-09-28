@@ -1,5 +1,6 @@
 const { verifyToken } = require('../config/jwt');
 const { get } = require('../config/db');
+const { isTokenRevoked } = require('../services/tokenBlacklistService');
 
 const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -11,6 +12,11 @@ const authenticateToken = async (req, res, next) => {
 
   try {
     const decoded = verifyToken(token);
+
+    if (await isTokenRevoked(decoded.jti)) {
+      return res.status(401).json({ error: 'Invalid or expired authentication token' });
+    }
+
     const user = await get(`SELECT id, name, email, phone, role_id, role_key, role_name, org_id, is_active FROM users WHERE id = ?`, [decoded.id]);
 
     if (!user || user.is_active !== 1) {
@@ -18,6 +24,7 @@ const authenticateToken = async (req, res, next) => {
     }
 
     req.user = user;
+    req.tokenPayload = decoded;
     next();
   } catch (err) {
     return res.status(401).json({ error: 'Invalid or expired authentication token' });
@@ -34,9 +41,13 @@ const optionalAuth = async (req, res, next) => {
 
   try {
     const decoded = verifyToken(token);
+    if (await isTokenRevoked(decoded.jti)) {
+      return next();
+    }
     const user = await get(`SELECT id, name, email, phone, role_id, role_key, role_name, org_id, is_active FROM users WHERE id = ?`, [decoded.id]);
     if (user && user.is_active === 1) {
       req.user = user;
+      req.tokenPayload = decoded;
     }
   } catch (e) {
     // Ignore invalid optional tokens

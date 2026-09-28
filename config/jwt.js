@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -14,6 +15,7 @@ const generateToken = (user) => {
       role: user.role,
       role_id: user.role_id,
       org_id: user.org_id,
+      jti: crypto.randomUUID(),
     },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN }
