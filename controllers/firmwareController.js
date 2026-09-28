@@ -36,12 +36,13 @@ const createDeployment = async (req, res) => {
     }
 
     const { run, get } = require('../config/db');
-    const result = await run(
-      `INSERT INTO deployments (version, description, org_id, deployed_at) VALUES (?, ?, ?, datetime('now'))`,
-      [version, description || null, org_id || req.user?.org_id || null]
+    const id = `DEP-${Date.now().toString(36).toUpperCase()}`;
+    await run(
+      `INSERT INTO deployments (id, device_id, firmware_version, previous_version, status, org_id, deployed_at) VALUES (?, ?, ?, ?, 'success', ?, ?)`,
+      [id, req.body.device_id || 'UNKNOWN', version, req.body.previous_version || null, org_id || req.user?.org_id || null, new Date().toISOString()]
     );
 
-    const deployment = await get(`SELECT * FROM deployments WHERE id = ?`, [result.lastID]);
+    const deployment = await get(`SELECT * FROM deployments WHERE id = ?`, [id]);
     return res.status(201).json({ deployment });
   } catch (err) {
     console.error('createDeployment error:', err);

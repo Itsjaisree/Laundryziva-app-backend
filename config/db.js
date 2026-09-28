@@ -1,48 +1,41 @@
-const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
+const { Pool } = require('pg');
 
-const DB_PATH = path.join(__dirname, '..', 'laundryziva.db');
-
-const db = new sqlite3.Database(DB_PATH, (err) => {
-  if (err) {
-    console.error('Error opening SQLite database:', err);
-  } else {
-    console.log(`Connected to SQLite database at ${DB_PATH}`);
-  }
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
 });
 
-// Enable foreign keys
-db.run('PRAGMA foreign_keys = ON;');
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle Postgres client:', err);
+});
 
-const run = (sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function (err) {
-      if (err) return reject(err);
-      resolve({ id: this.lastID, changes: this.changes });
-    });
-  });
+pool.query('SELECT 1')
+  .then(() => console.log(`Connected to PostgreSQL database.`))
+  .catch((err) => console.error('Error connecting to PostgreSQL database:', err));
+
+// The rest of the codebase writes queries with SQLite-style "?" placeholders — translate
+// them to Postgres's positional "$1, $2, ..." so controllers didn't need to be rewritten.
+const toPositional = (sql) => {
+  let i = 0;
+  return sql.replace(/\?/g, () => `$${++i}`);
 };
 
-const get = (sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => {
-      if (err) return reject(err);
-      resolve(row);
-    });
-  });
+const run = async (sql, params = []) => {
+  const result = await pool.query(toPositional(sql), params);
+  return { changes: result.rowCount, rows: result.rows };
 };
 
-const all = (sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) return reject(err);
-      resolve(rows);
-    });
-  });
+const get = async (sql, params = []) => {
+  const result = await pool.query(toPositional(sql), params);
+  return result.rows[0];
+};
+
+const all = async (sql, params = []) => {
+  const result = await pool.query(toPositional(sql), params);
+  return result.rows;
 };
 
 module.exports = {
-  db,
+  pool,
   run,
   get,
   all,
