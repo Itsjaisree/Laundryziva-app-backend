@@ -4,12 +4,17 @@ const { run, get, all } = require('../config/db');
 const getUsers = async (req, res) => {
   try {
     const orgId = req.query.org_id || req.user?.org_id;
-    let sql = `SELECT id, name, email, phone, role_id, role_key, role_name, org_id, is_active, created_at, last_login FROM users`;
+    const { role_key } = req.query;
+    let sql = `SELECT id, name, email, phone, role_id, role_key, role_name, org_id, is_active, created_at, last_login FROM users WHERE 1=1`;
     const params = [];
 
     if (orgId) {
-      sql += ` WHERE org_id = ? OR org_id IS NULL`;
+      sql += ` AND (org_id = ? OR org_id IS NULL)`;
       params.push(orgId);
+    }
+    if (role_key) {
+      sql += ` AND role_key = ?`;
+      params.push(role_key);
     }
 
     sql += ` ORDER BY created_at DESC`;

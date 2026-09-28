@@ -1,4 +1,4 @@
-const { run } = require('../config/db');
+const { run, all } = require('../config/db');
 
 const initSchema = async () => {
   console.log('Initializing Database Schemas...');
@@ -178,7 +178,7 @@ const initSchema = async () => {
     CREATE TABLE IF NOT EXISTS technician_tasks (
       id TEXT PRIMARY KEY,
       org_id TEXT NOT NULL,
-      technician_id TEXT NOT NULL,
+      technician_id TEXT,
       technician_name TEXT,
       type TEXT NOT NULL DEFAULT 'Maintenance',
       title TEXT NOT NULL,
@@ -217,6 +217,51 @@ const initSchema = async () => {
     await run(`ALTER TABLE technician_tasks ADD COLUMN after_photos TEXT;`);
   } catch (e) {
     // Column already exists
+  }
+
+  // Migration: allow tasks to be created unassigned (support may leave technician_id
+  // empty and assign it later) — SQLite can't drop a NOT NULL constraint with ALTER TABLE,
+  // so rebuild the table when an existing DB still has the old constraint.
+  const taskCols = await all(`PRAGMA table_info(technician_tasks)`);
+  const technicianIdCol = taskCols.find((c) => c.name === 'technician_id');
+  if (technicianIdCol && technicianIdCol.notnull === 1) {
+    await run(`PRAGMA foreign_keys = OFF;`);
+    await run(`ALTER TABLE technician_tasks RENAME TO technician_tasks_old;`);
+    await run(`
+      CREATE TABLE technician_tasks (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL,
+        technician_id TEXT,
+        technician_name TEXT,
+        type TEXT NOT NULL DEFAULT 'Maintenance',
+        title TEXT NOT NULL,
+        description TEXT,
+        location TEXT,
+        machine_id TEXT,
+        machine_name TEXT,
+        scheduled_date TEXT,
+        scheduled_time TEXT,
+        priority TEXT DEFAULT 'Medium',
+        status TEXT DEFAULT 'Assigned',
+        arrival_photo_url TEXT,
+        verification_photo_url TEXT,
+        before_photos TEXT,
+        after_photos TEXT,
+        change_request_type TEXT,
+        change_request_reason TEXT,
+        change_request_status TEXT,
+        source_ticket_id TEXT,
+        created_by TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (technician_id) REFERENCES users (id),
+        FOREIGN KEY (machine_id) REFERENCES machines (device_id),
+        FOREIGN KEY (source_ticket_id) REFERENCES customer_care_tickets (id)
+      );
+    `);
+    await run(`INSERT INTO technician_tasks SELECT * FROM technician_tasks_old;`);
+    await run(`DROP TABLE technician_tasks_old;`);
+    await run(`PRAGMA foreign_keys = ON;`);
   }
 
   // Task Messages Table (per-task chat thread between technician and dispatch/support)

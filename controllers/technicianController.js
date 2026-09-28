@@ -69,23 +69,24 @@ const createTask = async (req, res) => {
       source_ticket_id, org_id,
     } = req.body;
 
-    if (!technician_id || !title) {
-      return res.status(400).json({ error: 'technician_id and title are required' });
+    if (!title) {
+      return res.status(400).json({ error: 'title is required' });
     }
 
     const id = `TASK_${Date.now().toString(36).toUpperCase()}_${Math.floor(Math.random() * 1000)}`;
     const taskOrgId = org_id || req.user?.org_id || 'ORG_1637D16F';
     const now = new Date().toISOString();
+    const initialStatus = technician_id ? 'Assigned' : 'Unassigned';
 
     await run(`
       INSERT INTO technician_tasks (
         id, org_id, technician_id, technician_name, type, title, description, location,
         machine_id, machine_name, scheduled_date, scheduled_time, priority, status,
         source_ticket_id, created_by, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Assigned', ?, ?, ?, ?);
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     `, [
-      id, taskOrgId, technician_id, technician_name || null, type || 'Maintenance', title, description || null, location || null,
-      machine_id || null, machine_name || null, scheduled_date || null, scheduled_time || null, priority || 'Medium',
+      id, taskOrgId, technician_id || null, technician_name || null, type || 'Maintenance', title, description || null, location || null,
+      machine_id || null, machine_name || null, scheduled_date || null, scheduled_time || null, priority || 'Medium', initialStatus,
       source_ticket_id || null, req.user?.id || null, now, now,
     ]);
 
