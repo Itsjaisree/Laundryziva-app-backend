@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const organizationController = require('../controllers/organizationController');
-const { optionalAuth } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
 
-router.get('/', optionalAuth, organizationController.getOrganizations);
-router.post('/', optionalAuth, organizationController.createOrganization);
-router.delete('/:id', optionalAuth, organizationController.deleteOrganization);
+router.get('/', authenticateToken, organizationController.getOrganizations);
+router.post('/', authenticateToken, organizationController.createOrganization);
+router.delete('/:id', authenticateToken, organizationController.deleteOrganization);
 
 module.exports = router;

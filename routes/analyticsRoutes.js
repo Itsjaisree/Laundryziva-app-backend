@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const analyticsController = require('../controllers/analyticsController');
-const { optionalAuth } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
 
-router.get('/summary', optionalAuth, analyticsController.getSummary);
-router.get('/daily', optionalAuth, analyticsController.getDaily);
-router.get('/machines', optionalAuth, analyticsController.getMachinesAnalytics);
-router.get('/export', optionalAuth, analyticsController.exportAnalytics);
+router.get('/summary', authenticateToken, analyticsController.getSummary);
+router.get('/daily', authenticateToken, analyticsController.getDaily);
+router.get('/machines', authenticateToken, analyticsController.getMachinesAnalytics);
+router.get('/export', authenticateToken, analyticsController.exportAnalytics);
 
 module.exports = router;

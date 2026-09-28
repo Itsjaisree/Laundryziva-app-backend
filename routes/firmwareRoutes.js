@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const firmwareController = require('../controllers/firmwareController');
-const { optionalAuth } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
 
-router.get('/deployments/history', optionalAuth, firmwareController.getDeploymentHistory);
-router.post('/deployments', optionalAuth, firmwareController.createDeployment);
+router.get('/deployments/history', authenticateToken, firmwareController.getDeploymentHistory);
+router.post('/deployments', authenticateToken, firmwareController.createDeployment);
 
 module.exports = router;

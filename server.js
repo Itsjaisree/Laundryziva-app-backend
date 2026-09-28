@@ -1,5 +1,7 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
 const { initSchema } = require('./models/schema');
 const { seedDatabase } = require('./services/seedService');
@@ -19,6 +21,11 @@ const technicianRoutes = require('./routes/technicianRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Trust the nginx reverse proxy for correct client IPs (rate limiting, logging)
+app.set('trust proxy', 1);
+
+app.use(helmet());
 
 // Enable CORS for frontend clients
 app.use(cors());

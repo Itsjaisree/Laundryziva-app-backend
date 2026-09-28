@@ -1,23 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const machineController = require('../controllers/machineController');
-const { optionalAuth } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
 
-router.get('/machines', optionalAuth, machineController.getMachines);
-router.get('/machines/', optionalAuth, machineController.getMachines);
-router.post('/machines', optionalAuth, machineController.createMachine);
-router.post('/machines/', optionalAuth, machineController.createMachine);
+router.get('/machines', authenticateToken, machineController.getMachines);
+router.get('/machines/', authenticateToken, machineController.getMachines);
+router.post('/machines', authenticateToken, machineController.createMachine);
+router.post('/machines/', authenticateToken, machineController.createMachine);
 
-router.get('/fleet/summary', optionalAuth, machineController.getFleetSummary);
+router.get('/fleet/summary', authenticateToken, machineController.getFleetSummary);
 
-router.get('/machines/:id', optionalAuth, machineController.getMachineById);
+router.get('/machines/:id', authenticateToken, machineController.getMachineById);
 
-router.put('/machines/:id', optionalAuth, machineController.updateMachine);
-router.delete('/machines/:id', optionalAuth, machineController.deleteMachine);
+router.put('/machines/:id', authenticateToken, machineController.updateMachine);
+router.delete('/machines/:id', authenticateToken, machineController.deleteMachine);
 
-router.post('/machines/:id/start', optionalAuth, machineController.startMachine);
-router.post('/machines/:id/stop', optionalAuth, machineController.stopMachine);
-router.post('/machines/:id/reboot', optionalAuth, machineController.rebootMachine);
-router.post('/machines/:id/relay', optionalAuth, machineController.toggleRelay);
+router.post('/machines/:id/start', authenticateToken, machineController.startMachine);
+router.post('/machines/:id/stop', authenticateToken, machineController.stopMachine);
+router.post('/machines/:id/reboot', authenticateToken, machineController.rebootMachine);
+router.post('/machines/:id/relay', authenticateToken, machineController.toggleRelay);
 
 module.exports = router;

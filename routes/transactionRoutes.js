@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const transactionController = require('../controllers/transactionController');
-const { optionalAuth } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
 
-router.get('/', optionalAuth, transactionController.getTransactions);
-router.get('/export', optionalAuth, transactionController.exportTransactions);
-router.post('/', optionalAuth, transactionController.createTransaction);
-router.post('/:id/refund', optionalAuth, transactionController.refundTransaction);
+router.get('/', authenticateToken, transactionController.getTransactions);
+router.get('/export', authenticateToken, transactionController.exportTransactions);
+router.post('/', authenticateToken, transactionController.createTransaction);
+router.post('/:id/refund', authenticateToken, transactionController.refundTransaction);
 
 module.exports = router;
