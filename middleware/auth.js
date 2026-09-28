@@ -44,7 +44,20 @@ const optionalAuth = async (req, res, next) => {
   next();
 };
 
+// requireRole('organization_owner', 'field_operations') -> only those role_keys (plus super_admin, always allowed) may proceed.
+// Must run after authenticateToken so req.user is already populated.
+const requireRole = (...allowedRoleKeys) => (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication token required' });
+  }
+  if (req.user.role_key === 'super_admin' || allowedRoleKeys.includes(req.user.role_key)) {
+    return next();
+  }
+  return res.status(403).json({ error: 'You do not have permission to perform this action' });
+};
+
 module.exports = {
   authenticateToken,
   optionalAuth,
+  requireRole,
 };

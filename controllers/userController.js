@@ -4,7 +4,10 @@ const { run, get, all } = require('../config/db');
 const getUsers = async (req, res) => {
   try {
     const orgId = req.query.org_id || req.user?.org_id;
-    const { role_key } = req.query;
+    const requesterRole = req.user?.role_key;
+    const isPrivileged = requesterRole === 'super_admin' || requesterRole === 'organization_owner';
+    // Non-privileged roles (e.g. support_refund_agent picking a technician for a task) may only ever list technicians.
+    const role_key = isPrivileged ? req.query.role_key : 'field_operations';
     let sql = `SELECT id, name, email, phone, role_id, role_key, role_name, org_id, is_active, created_at, last_login FROM users WHERE 1=1`;
     const params = [];
 

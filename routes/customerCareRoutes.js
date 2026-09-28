@@ -1,14 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const customerCareController = require('../controllers/customerCareController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, requireRole } = require('../middleware/auth');
 
-router.get('/tickets', authenticateToken, customerCareController.getTickets);
-router.post('/tickets', authenticateToken, customerCareController.createTicket);
-router.get('/tickets/customer/:customerId', authenticateToken, customerCareController.getCustomerHistory);
-router.get('/tickets/:id', authenticateToken, customerCareController.getTicket);
-router.post('/tickets/:id/reassign', authenticateToken, customerCareController.reassignTicket);
-router.post('/tickets/:id/resolve', authenticateToken, customerCareController.resolveTicket);
-router.post('/tickets/:id/take-ownership', authenticateToken, customerCareController.takeOwnershipTicket);
+const canManageTickets = requireRole('organization_owner', 'support_refund_agent');
+
+router.get('/tickets', authenticateToken, canManageTickets, customerCareController.getTickets);
+router.post('/tickets', authenticateToken, canManageTickets, customerCareController.createTicket);
+router.get('/tickets/customer/:customerId', authenticateToken, canManageTickets, customerCareController.getCustomerHistory);
+router.get('/tickets/:id', authenticateToken, canManageTickets, customerCareController.getTicket);
+router.post('/tickets/:id/reassign', authenticateToken, canManageTickets, customerCareController.reassignTicket);
+router.post('/tickets/:id/resolve', authenticateToken, canManageTickets, customerCareController.resolveTicket);
+router.post('/tickets/:id/take-ownership', authenticateToken, canManageTickets, customerCareController.takeOwnershipTicket);
 
 module.exports = router;

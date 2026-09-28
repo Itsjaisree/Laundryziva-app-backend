@@ -1,11 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const analyticsController = require('../controllers/analyticsController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, requireRole } = require('../middleware/auth');
 
-router.get('/summary', authenticateToken, analyticsController.getSummary);
-router.get('/daily', authenticateToken, analyticsController.getDaily);
-router.get('/machines', authenticateToken, analyticsController.getMachinesAnalytics);
-router.get('/export', authenticateToken, analyticsController.exportAnalytics);
+const canViewAnalytics = requireRole('organization_owner', 'finance_auditor');
+
+router.get('/summary', authenticateToken, canViewAnalytics, analyticsController.getSummary);
+router.get('/daily', authenticateToken, canViewAnalytics, analyticsController.getDaily);
+router.get('/machines', authenticateToken, canViewAnalytics, analyticsController.getMachinesAnalytics);
+router.get('/export', authenticateToken, canViewAnalytics, analyticsController.exportAnalytics);
 
 module.exports = router;
