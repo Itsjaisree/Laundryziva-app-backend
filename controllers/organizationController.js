@@ -16,6 +16,10 @@ const createOrganization = async (req, res) => {
   try {
     const { name, city, contact_name, contact_email, contact_phone, logo_url, location_image_url } = req.body;
 
+    if (!name || !city || !contact_name || !contact_email || !contact_phone) {
+      return res.status(400).json({ error: 'name, city, contact_name, contact_email, and contact_phone are all required' });
+    }
+
     const orgId = `ORG_${Date.now().toString(16).toUpperCase()}`;
     const createdAt = new Date().toISOString();
     const createdBy = req.user?.id || 'system';
@@ -23,7 +27,7 @@ const createOrganization = async (req, res) => {
     await run(`
       INSERT INTO organizations (id, name, city, contact_name, contact_email, contact_phone, is_active, logo_url, location_image_url, created_by, created_at)
       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?);
-    `, [orgId, name || 'New Organization', city || '', contact_name || '', contact_email || '', contact_phone || '', logo_url || null, location_image_url || null, createdBy, createdAt]);
+    `, [orgId, name, city, contact_name, contact_email, contact_phone, logo_url || null, location_image_url || null, createdBy, createdAt]);
 
     const createdOrg = await get(`SELECT ${ORG_SAFE_COLUMNS} FROM organizations WHERE id = ?`, [orgId]);
     return res.status(201).json(createdOrg);

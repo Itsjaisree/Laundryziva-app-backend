@@ -114,15 +114,15 @@ const createMachine = async (req, res) => {
 const registerPairedMachine = async (req, res) => {
   try {
     const { device_id, friendly_name, location, org_id } = req.body;
-    if (!device_id || !org_id) {
-      return res.status(400).json({ error: 'device_id and org_id are required' });
+    if (!device_id || !org_id || !friendly_name || !location) {
+      return res.status(400).json({ error: 'device_id, org_id, friendly_name, and location are all required' });
     }
 
     const existing = await get(`SELECT device_id FROM machines WHERE device_id = ?`, [device_id]);
     if (existing) {
       await run(`
         UPDATE machines SET friendly_name = ?, location = ?, org_id = ? WHERE device_id = ?
-      `, [friendly_name || 'Washing Machine', location || 'Main Location', org_id, device_id]);
+      `, [friendly_name, location, org_id, device_id]);
     } else {
       const now = new Date().toISOString();
       await run(`
@@ -131,7 +131,7 @@ const registerPairedMachine = async (req, res) => {
           wash_remaining_seconds, wash_total_seconds, relay1, relay2,
           firmware_version, gsm_signal, org_id, created_at, last_seen_at
         ) VALUES (?, ?, ?, 'ONLINE', 'IDLE', 0, 0, 0, 0, 'v2.1.0', 30, ?, ?, ?);
-      `, [device_id, friendly_name || 'Washing Machine', location || 'Main Location', org_id, now, now]);
+      `, [device_id, friendly_name, location, org_id, now, now]);
     }
 
     const result = await get(`SELECT * FROM machines WHERE device_id = ?`, [device_id]);
