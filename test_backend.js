@@ -203,8 +203,8 @@ const runTests = async () => {
     );
 
     // 22. Machine Single Lookup
-    const singleMachine = await request('GET', '/api/machines/TITAN_1020BA01D418', null, token);
-    assert(singleMachine.status === 200 && singleMachine.data.machine?.device_id === 'TITAN_1020BA01D418', 'Machine Single Lookup API (/api/machines/:id)');
+    const singleMachine = await request('GET', '/api/machines/WASHER_1020BA01D418', null, token);
+    assert(singleMachine.status === 200 && singleMachine.data.machine?.device_id === 'WASHER_1020BA01D418', 'Machine Single Lookup API (/api/machines/:id)');
 
     const missingMachine = await request('GET', '/api/machines/NON_EXISTENT_DEVICE', null, token);
     assert(missingMachine.status === 404, 'Machine Single Lookup 404 for unknown device');

@@ -3,7 +3,7 @@ const path = require('path');
 const db = new sqlite3.Database(path.join(__dirname, 'laundryziva.db'));
 
 const stmts = [
-  // Remove fake machines (keep only TITAN_1020BA01D418)
+  // Remove fake machines (keep only WASHER_1020BA01D418)
   "DELETE FROM machines WHERE device_id IN ('WM_PG2_102', 'DR_PG3_103')",
   // Remove seeded demo transaction
   "DELETE FROM transactions WHERE txn_id = 'TXN_9874101'",

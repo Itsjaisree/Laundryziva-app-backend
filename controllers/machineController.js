@@ -63,7 +63,7 @@ const getFleetSummary = async (req, res) => {
 const getMachineById = async (req, res) => {
   try {
     const { id } = req.params;
-    if (id === 'TITAN_1020BA01D418') {
+    if (id === 'WASHER_1020BA01D418') {
       await syncLiveDeviceStates();
     }
     const machine = await get(`SELECT * FROM machines WHERE device_id = ?`, [id]);

@@ -59,21 +59,21 @@ const fetchDeviceStatesFromDeviceServer = () => {
 };
 
 /**
- * Synchronizes live real-time telemetry from Device Server for TITAN_1020BA01D418 into SQLite database
+ * Synchronizes live real-time telemetry from Device Server for WASHER_1020BA01D418 into SQLite database
  */
 const syncLiveDeviceStates = async () => {
   try {
     const response = await fetchDeviceStatesFromDeviceServer();
     if (response && response.success && Array.isArray(response.data)) {
-      const titan = response.data.find((d) => d.device_id === 'TITAN_1020BA01D418');
-      if (titan) {
-        const healthStatus = (titan.health || (titan.online ? 'ONLINE' : 'OFFLINE')).toUpperCase();
-        const machineState = (titan.state || 'IDLE').toUpperCase();
-        const relay1Val = titan.relay1 === 'ON' || titan.relay1 === 1 ? 1 : 0;
-        const relay2Val = titan.relay2 === 'ON' || titan.relay2 === 1 ? 1 : 0;
-        const fwVersion = titan.firmware_version && titan.firmware_version !== '??' ? titan.firmware_version : '5.3.2';
-        const gsmSig = Math.abs(titan.rssi || 21);
-        const lastSeenIso = titan.last_seen ? new Date(titan.last_seen * 1000).toISOString() : new Date().toISOString();
+      const washer = response.data.find((d) => d.device_id === 'WASHER_1020BA01D418');
+      if (washer) {
+        const healthStatus = (washer.health || (washer.online ? 'ONLINE' : 'OFFLINE')).toUpperCase();
+        const machineState = (washer.state || 'IDLE').toUpperCase();
+        const relay1Val = washer.relay1 === 'ON' || washer.relay1 === 1 ? 1 : 0;
+        const relay2Val = washer.relay2 === 'ON' || washer.relay2 === 1 ? 1 : 0;
+        const fwVersion = washer.firmware_version && washer.firmware_version !== '??' ? washer.firmware_version : '5.3.2';
+        const gsmSig = Math.abs(washer.rssi || 21);
+        const lastSeenIso = washer.last_seen ? new Date(washer.last_seen * 1000).toISOString() : new Date().toISOString();
 
         await run(`
           UPDATE machines
@@ -86,7 +86,7 @@ const syncLiveDeviceStates = async () => {
               wash_remaining_seconds = ?,
               wash_total_seconds = ?,
               last_seen_at = ?
-          WHERE device_id = 'TITAN_1020BA01D418'
+          WHERE device_id = 'WASHER_1020BA01D418'
         `, [
           healthStatus,
           machineState,
@@ -94,11 +94,11 @@ const syncLiveDeviceStates = async () => {
           relay2Val,
           fwVersion,
           gsmSig,
-          titan.wash_remaining_seconds || 0,
-          titan.wash_total_seconds || 0,
+          washer.wash_remaining_seconds || 0,
+          washer.wash_total_seconds || 0,
           lastSeenIso,
         ]);
-        return titan;
+        return washer;
       }
     }
   } catch (err) {

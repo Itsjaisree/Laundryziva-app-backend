@@ -194,12 +194,12 @@ const seedDatabase = async () => {
   }
 
 
-  // 4. Seed Real Machine (TITAN_1020BA01D418 only — registered on Device Server)
+  // 4. Seed Real Machine (WASHER_1020BA01D418 only — registered on Device Server)
   // NOTE: WM_PG2_102 and DR_PG3_103 were demo/sample machines and have been removed.
   // Only the real registered machine is seeded here.
   const realMachines = [
     {
-      device_id: 'TITAN_1020BA01D418',
+      device_id: 'WASHER_1020BA01D418',
       friendly_name: 'PG1 Washing Machine 1',
       location: 'ABC Hostel, Room 101',
       health_status: 'OFFLINE',
@@ -239,7 +239,7 @@ const seedDatabase = async () => {
   const sampleDeployments = [
     {
       id: 'DEP-1092',
-      device_id: 'TITAN_1020BA01D418',
+      device_id: 'WASHER_1020BA01D418',
       firmware_version: '5.3.2',
       previous_version: '4.8.2',
       status: 'success',
