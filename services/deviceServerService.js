@@ -59,23 +59,28 @@ const fetchDeviceStatesFromDeviceServer = () => {
 };
 
 /**
- * Synchronizes live real-time telemetry from Device Server for WASHER_1020BA01D418 into SQLite database
+ * Synchronizes live real-time telemetry from the Device Server into our database.
+ * Only ever UPDATEs machines we already have registered — a device reported by the
+ * device server that we don't recognize is simply ignored, never auto-created. Pairing
+ * a new device to an organization happens on the device server's own dashboard, not here.
  */
 const syncLiveDeviceStates = async () => {
+  const synced = [];
   try {
     const response = await fetchDeviceStatesFromDeviceServer();
     if (response && response.success && Array.isArray(response.data)) {
-      const washer = response.data.find((d) => d.device_id === 'WASHER_1020BA01D418');
-      if (washer) {
-        const healthStatus = (washer.health || (washer.online ? 'ONLINE' : 'OFFLINE')).toUpperCase();
-        const machineState = (washer.state || 'IDLE').toUpperCase();
-        const relay1Val = washer.relay1 === 'ON' || washer.relay1 === 1 ? 1 : 0;
-        const relay2Val = washer.relay2 === 'ON' || washer.relay2 === 1 ? 1 : 0;
-        const fwVersion = washer.firmware_version && washer.firmware_version !== '??' ? washer.firmware_version : '5.3.2';
-        const gsmSig = Math.abs(washer.rssi || 21);
-        const lastSeenIso = washer.last_seen ? new Date(washer.last_seen * 1000).toISOString() : new Date().toISOString();
+      for (const device of response.data) {
+        if (!device.device_id) continue;
 
-        await run(`
+        const healthStatus = (device.health || (device.online ? 'ONLINE' : 'OFFLINE')).toUpperCase();
+        const machineState = (device.state || 'IDLE').toUpperCase();
+        const relay1Val = device.relay1 === 'ON' || device.relay1 === 1 ? 1 : 0;
+        const relay2Val = device.relay2 === 'ON' || device.relay2 === 1 ? 1 : 0;
+        const fwVersion = device.firmware_version && device.firmware_version !== '??' ? device.firmware_version : '5.3.2';
+        const gsmSig = Math.abs(device.rssi || 21);
+        const lastSeenIso = device.last_seen ? new Date(device.last_seen * 1000).toISOString() : new Date().toISOString();
+
+        const result = await run(`
           UPDATE machines
           SET health_status = ?,
               state = ?,
@@ -86,7 +91,7 @@ const syncLiveDeviceStates = async () => {
               wash_remaining_seconds = ?,
               wash_total_seconds = ?,
               last_seen_at = ?
-          WHERE device_id = 'WASHER_1020BA01D418'
+          WHERE device_id = ?
         `, [
           healthStatus,
           machineState,
@@ -94,17 +99,21 @@ const syncLiveDeviceStates = async () => {
           relay2Val,
           fwVersion,
           gsmSig,
-          washer.wash_remaining_seconds || 0,
-          washer.wash_total_seconds || 0,
+          device.wash_remaining_seconds || 0,
+          device.wash_total_seconds || 0,
           lastSeenIso,
+          device.device_id,
         ]);
-        return washer;
+
+        if (result.changes > 0) {
+          synced.push(device);
+        }
       }
     }
   } catch (err) {
     console.warn('syncLiveDeviceStates error:', err.message);
   }
-  return null;
+  return synced;
 };
 
 module.exports = {
