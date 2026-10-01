@@ -16,9 +16,11 @@ const initSchema = async () => {
       logo_url TEXT,
       location_image_url TEXT,
       created_by TEXT,
-      created_at TEXT NOT NULL
+      created_at TEXT NOT NULL,
+      mqtt_password TEXT
     );
   `);
+  await run(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS mqtt_password TEXT;`);
 
   // Roles Table
   await run(`

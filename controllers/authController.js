@@ -6,6 +6,19 @@ const { revokeToken } = require('../services/tokenBlacklistService');
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
 
+const getMqttCredentialsForUser = async (user) => {
+  if (user.role_key === 'super_admin' && process.env.PLATFORM_ADMIN_MQTT_PASSWORD) {
+    return { username: 'platform_admin', password: process.env.PLATFORM_ADMIN_MQTT_PASSWORD };
+  }
+  if (user.org_id) {
+    const org = await get(`SELECT mqtt_password FROM organizations WHERE id = ?`, [user.org_id]);
+    if (org?.mqtt_password) {
+      return { username: user.org_id, password: org.mqtt_password };
+    }
+  }
+  return null;
+};
+
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -56,9 +69,12 @@ const login = async (req, res) => {
       org_id: user.org_id,
     };
 
+    const mqtt = await getMqttCredentialsForUser(user);
+
     return res.json({
       access_token,
       user: safeUser,
+      mqtt,
     });
   } catch (err) {
     console.error('Login error:', err);
@@ -98,7 +114,9 @@ const getMe = async (req, res) => {
       org_id: user.org_id,
     };
 
-    return res.json({ user: safeUser });
+    const mqtt = await getMqttCredentialsForUser(user);
+
+    return res.json({ user: safeUser, mqtt });
   } catch (err) {
     console.error('getMe error:', err);
     return res.status(500).json({ error: 'Internal server error' });
