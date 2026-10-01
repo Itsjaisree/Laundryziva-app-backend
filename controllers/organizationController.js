@@ -1,8 +1,10 @@
 const { run, get, all } = require('../config/db');
 
+const ORG_SAFE_COLUMNS = `id, name, city, contact_name, contact_email, contact_phone, is_active, logo_url, location_image_url, created_by, created_at`;
+
 const getOrganizations = async (req, res) => {
   try {
-    const orgs = await all(`SELECT * FROM organizations ORDER BY created_at DESC`);
+    const orgs = await all(`SELECT ${ORG_SAFE_COLUMNS} FROM organizations ORDER BY created_at DESC`);
     return res.json({ organizations: orgs });
   } catch (err) {
     console.error('getOrganizations error:', err);
@@ -23,7 +25,7 @@ const createOrganization = async (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?);
     `, [orgId, name || 'New Organization', city || '', contact_name || '', contact_email || '', contact_phone || '', logo_url || null, location_image_url || null, createdBy, createdAt]);
 
-    const createdOrg = await get(`SELECT * FROM organizations WHERE id = ?`, [orgId]);
+    const createdOrg = await get(`SELECT ${ORG_SAFE_COLUMNS} FROM organizations WHERE id = ?`, [orgId]);
     return res.status(201).json(createdOrg);
   } catch (err) {
     console.error('createOrganization error:', err);
