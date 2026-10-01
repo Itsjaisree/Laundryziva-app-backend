@@ -4,7 +4,10 @@ const machineController = require('../controllers/machineController');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 
 const canControlMachines = requireRole('organization_owner', 'field_operations');
-const canManageMachines = requireRole('organization_owner');
+// Adding/editing/removing machine records is handled by our own team via the device
+// server's pairing workflow, not by organization owners — they get read + operational
+// control (start/stop/relay) on their fleet, but not record management.
+const canManageMachines = requireRole();
 
 router.get('/machines', authenticateToken, machineController.getMachines);
 router.get('/machines/', authenticateToken, machineController.getMachines);
