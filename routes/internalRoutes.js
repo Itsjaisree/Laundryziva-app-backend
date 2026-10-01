@@ -7,6 +7,6 @@ const { requireDeviceServerKey } = require('../middleware/internalAuth');
 // Server-to-server endpoints for the device server's pairing dashboard — not reachable
 // by the mobile app, which uses the normal JWT-protected routes.
 router.get('/organizations', requireDeviceServerKey, organizationController.getOrganizations);
-router.post('/machines', requireDeviceServerKey, machineController.createMachine);
+router.post('/machines', requireDeviceServerKey, machineController.registerPairedMachine);
 
 module.exports = router;

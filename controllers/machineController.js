@@ -107,6 +107,41 @@ const createMachine = async (req, res) => {
   }
 };
 
+// Called by the device server when a device is paired on its dashboard. Unlike
+// createMachine (used by the super_admin's manual "Add Machine" screen, which should
+// reject a duplicate ID), this is idempotent — re-pairing an already-known device
+// (e.g. moving it to a different org) updates it instead of failing.
+const registerPairedMachine = async (req, res) => {
+  try {
+    const { device_id, friendly_name, location, org_id } = req.body;
+    if (!device_id || !org_id) {
+      return res.status(400).json({ error: 'device_id and org_id are required' });
+    }
+
+    const existing = await get(`SELECT device_id FROM machines WHERE device_id = ?`, [device_id]);
+    if (existing) {
+      await run(`
+        UPDATE machines SET friendly_name = ?, location = ?, org_id = ? WHERE device_id = ?
+      `, [friendly_name || 'Washing Machine', location || 'Main Location', org_id, device_id]);
+    } else {
+      const now = new Date().toISOString();
+      await run(`
+        INSERT INTO machines (
+          device_id, friendly_name, location, health_status, state,
+          wash_remaining_seconds, wash_total_seconds, relay1, relay2,
+          firmware_version, gsm_signal, org_id, created_at, last_seen_at
+        ) VALUES (?, ?, ?, 'ONLINE', 'IDLE', 0, 0, 0, 0, 'v2.1.0', 30, ?, ?, ?);
+      `, [device_id, friendly_name || 'Washing Machine', location || 'Main Location', org_id, now, now]);
+    }
+
+    const result = await get(`SELECT * FROM machines WHERE device_id = ?`, [device_id]);
+    return res.status(200).json(result);
+  } catch (err) {
+    console.error('registerPairedMachine error:', err);
+    return res.status(500).json({ error: 'Failed to register paired machine' });
+  }
+};
+
 const updateMachine = async (req, res) => {
   try {
     const { id } = req.params;
@@ -226,6 +261,7 @@ module.exports = {
   getMachineById,
   getFleetSummary,
   createMachine,
+  registerPairedMachine,
   updateMachine,
   deleteMachine,
   startMachine,
