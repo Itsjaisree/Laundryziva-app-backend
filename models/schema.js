@@ -155,6 +155,41 @@ const initSchema = async () => {
   // The notification service has always written org_id; the original table never had the column.
   await run(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS org_id TEXT;`);
 
+  // Per-user switches for the notification types an owner may turn off (missing row = on)
+  await run(`
+    CREATE TABLE IF NOT EXISTS notification_prefs (
+      user_id TEXT NOT NULL,
+      pref_key TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      PRIMARY KEY (user_id, pref_key)
+    );
+  `);
+
+  // Super admin broadcast messages, kept as a record of what was sent to whom
+  await run(`
+    CREATE TABLE IF NOT EXISTS announcements (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      audience TEXT NOT NULL,
+      org_id TEXT,
+      recipient_count INTEGER NOT NULL DEFAULT 0,
+      sent_by TEXT NOT NULL,
+      sent_by_name TEXT,
+      created_at TEXT NOT NULL
+    );
+  `);
+
+  // Marks a scheduled job (like the daily summary) as done for a period so a restart never sends it twice
+  await run(`
+    CREATE TABLE IF NOT EXISTS scheduler_runs (
+      job_key TEXT PRIMARY KEY,
+      ran_at TEXT NOT NULL
+    );
+  `);
+  await run(`ALTER TABLE technician_tasks ADD COLUMN IF NOT EXISTS reminder_sent INTEGER DEFAULT 0;`);
+  await run(`ALTER TABLE machines ADD COLUMN IF NOT EXISTS offline_alerted INTEGER DEFAULT 0;`);
+
   // Expo push tokens, one row per device
   await run(`
     CREATE TABLE IF NOT EXISTS push_tokens (

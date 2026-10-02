@@ -46,9 +46,18 @@ const sendToTokens = async (tokens, { title, body, data }) => {
  * @param {string[]} userIds
  * @param {{title: string, body: string, data?: object, orgId?: string, type?: string, icon?: string}} n
  */
-const notifyUsers = async (userIds, { title, body, data = {}, orgId = null, type = 'task', icon = 'notifications-outline' }) => {
+const notifyUsers = async (userIds, { title, body, data = {}, orgId = null, type = 'task', icon = 'notifications-outline', prefKey = null }) => {
   try {
-    const ids = [...new Set((userIds || []).filter(Boolean))];
+    let ids = [...new Set((userIds || []).filter(Boolean))];
+    // Owners can switch some types off (payments, offline, daily summary); everything else is always sent.
+    if (prefKey && ids.length) {
+      const off = await all(
+        `SELECT user_id FROM notification_prefs WHERE pref_key = ? AND enabled = 0 AND user_id IN (${ids.map(() => '?').join(',')})`,
+        [prefKey, ...ids]
+      );
+      const offSet = new Set(off.map((r) => r.user_id));
+      ids = ids.filter((id) => !offSet.has(id));
+    }
     if (ids.length === 0) return;
     const createdAt = new Date().toISOString();
 
@@ -73,7 +82,10 @@ const notifyUsers = async (userIds, { title, body, data = {}, orgId = null, type
   }
 };
 
+const ownerUserIds = async (orgId) =>
+  orgId ? (await all(`SELECT id FROM users WHERE role_key = 'organization_owner' AND org_id = ? AND is_active = 1`, [orgId])).map((u) => u.id) : [];
+
 const supportUserIds = async () =>
   (await all(`SELECT id FROM users WHERE role_key = 'support_refund_agent' AND is_active = 1`)).map((u) => u.id);
 
-module.exports = { isValidPushToken, saveToken, removeToken, notifyUsers, supportUserIds };
+module.exports = { isValidPushToken, saveToken, removeToken, notifyUsers, supportUserIds, ownerUserIds };

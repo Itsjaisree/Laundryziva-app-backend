@@ -20,6 +20,8 @@ const analyticsRoutes = require('./routes/analyticsRoutes');
 const technicianRoutes = require('./routes/technicianRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const pushRoutes = require('./routes/pushRoutes');
+const announcementRoutes = require('./routes/announcementRoutes');
+const { startScheduler } = require('./services/scheduler');
 const photoRoutes = require('./routes/photoRoutes');
 const internalRoutes = require('./routes/internalRoutes');
 
@@ -68,6 +70,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/technician', technicianRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/push', pushRoutes);
+app.use('/api/announcements', announcementRoutes);
 app.use('/api/photos', photoRoutes);
 app.use('/api/internal', internalRoutes);
 
@@ -90,6 +93,7 @@ const startServer = async () => {
     await seedDatabase();
     await syncLiveDeviceStates();
     setInterval(syncLiveDeviceStates, 15000);
+    startScheduler();
 
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`====================================================`);

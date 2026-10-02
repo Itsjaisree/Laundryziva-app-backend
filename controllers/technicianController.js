@@ -1,6 +1,12 @@
 const { run, get, all } = require('../config/db');
 const { releaseMachineControl } = require('../services/machineControlService');
-const { notifyUsers, supportUserIds } = require('../services/pushService');
+const { notifyUsers, supportUserIds, ownerUserIds } = require('../services/pushService');
+
+// Tells the owners of the task's organization. Fire-and-forget: a failed alert never fails the request.
+const alertOwners = (orgId, title, body, taskId) =>
+  ownerUserIds(orgId).then((ids) =>
+    notifyUsers(ids, { title, body, data: { type: 'task', taskId }, orgId, icon: 'construct-outline' })
+  );
 
 // GET /api/technician/tasks
 const getTasks = async (req, res) => {
@@ -133,6 +139,12 @@ const createTask = async (req, res) => {
         icon: 'construct-outline',
       });
     }
+    if (technician_id) {
+      alertOwners(taskOrgId, 'Technician assigned', `${created.technician_name || 'A technician'} has been assigned to "${title}"`, id);
+    } else {
+      const where = [machine_name || machine_id, created.location].filter(Boolean).join(' at ');
+      alertOwners(taskOrgId, 'Issue raised', `"${title}" logged${where ? ` for ${where}` : ''}`, id);
+    }
     return res.status(201).json({ message: 'Task created successfully', task_id: id, task: created });
   } catch (err) {
     console.error('createTask error:', err);
@@ -197,6 +209,11 @@ const startTask = async (req, res) => {
     `, [urls[0], JSON.stringify(urls), new Date().toISOString(), id]);
 
     const updated = await get(`SELECT * FROM technician_tasks WHERE id = ?`, [id]);
+    const startedBody = `${updated.technician_name || 'A technician'} arrived${updated.location ? ` at ${updated.location}` : ''} and started "${updated.title}"`;
+    alertOwners(updated.org_id, 'Work started', startedBody, id);
+    supportUserIds().then((ids) =>
+      notifyUsers(ids, { title: 'Work started', body: startedBody, data: { type: 'task', taskId: id }, orgId: updated.org_id, icon: 'play-circle-outline' })
+    );
     return res.json({ message: 'Task started', task: updated });
   } catch (err) {
     console.error('startTask error:', err);
@@ -246,6 +263,7 @@ const completeTask = async (req, res) => {
         icon: 'checkmark-done-outline',
       })
     );
+    alertOwners(updated.org_id, 'Work completed', `${updated.technician_name || 'A technician'} completed "${updated.title}"${updated.location ? ` at ${updated.location}` : ''}`, id);
     return res.json({ message: 'Task marked completed', task: updated });
   } catch (err) {
     console.error('completeTask error:', err);
@@ -437,18 +455,21 @@ const updateTask = async (req, res) => {
     const alert = { data: { type: 'task', taskId: id }, orgId: updated.org_id, icon: 'construct-outline' };
     if (technicianChanged) {
       if (task.technician_id) {
-        notifyUsers([task.technician_id], { ...alert, title: 'Task reassigned', body: `"${task.title}" is no longer assigned to you.` });
+        notifyUsers([task.technician_id], { ...alert, title: 'Task reassigned', body: `"${task.title}" is no longer assigned to you` });
       }
       if (updated.technician_id) {
-        notifyUsers([updated.technician_id], { ...alert, title: 'New task assigned', body: [updated.title, updated.location].filter(Boolean).join(' · ') });
+        notifyUsers([updated.technician_id], {
+          ...alert,
+          title: 'New task assigned',
+          body: [updated.title, updated.location, [updated.scheduled_date, updated.scheduled_time].filter(Boolean).join(' ')].filter(Boolean).join(' · '),
+        });
+        alertOwners(updated.org_id, 'Technician assigned', `${updated.technician_name} has been assigned to "${updated.title}"`, id);
       }
-    } else if (updated.technician_id && (rescheduled || fields.some((f) => ['title', 'description', 'location', 'machine_id', 'machine_name', 'priority'].includes(f)))) {
+    } else if (updated.technician_id && rescheduled) {
       const when = [updated.scheduled_date, updated.scheduled_time].filter(Boolean).join(' ');
-      notifyUsers([updated.technician_id], {
-        ...alert,
-        title: 'Task updated',
-        body: rescheduled && when ? `"${updated.title}" is now scheduled for ${when}.` : `Details of "${updated.title}" were changed.`,
-      });
+      notifyUsers([updated.technician_id], { ...alert, title: 'Task rescheduled', body: `"${updated.title}" is now on ${when}` });
+    } else if (updated.technician_id && fields.some((f) => ['title', 'description', 'location', 'machine_id', 'machine_name', 'priority'].includes(f))) {
+      notifyUsers([updated.technician_id], { ...alert, title: 'Task updated', body: `Details of "${updated.title}" were changed` });
     }
     return res.json({ message: 'Task updated', task: updated });
   } catch (err) {
