@@ -74,13 +74,29 @@ const getTask = async (req, res) => {
 const createTask = async (req, res) => {
   try {
     const {
-      technician_id, technician_name, type, title, description, location,
+      technician_id, type, title, description, location,
       machine_id, machine_name, scheduled_date, scheduled_time, priority,
       source_ticket_id, org_id,
     } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: 'title is required' });
+    }
+    if (priority && !EDIT_PRIORITIES.includes(priority)) {
+      return res.status(400).json({ error: 'priority must be Low, Medium or High' });
+    }
+    if (scheduled_date && (!/^\d{4}-\d{2}-\d{2}$/.test(scheduled_date) || Number.isNaN(new Date(`${scheduled_date}T00:00:00Z`).getTime()))) {
+      return res.status(400).json({ error: 'scheduled_date must be a valid YYYY-MM-DD date' });
+    }
+
+    // The technician's name always comes from their account, never from the client.
+    let technicianName = null;
+    if (technician_id) {
+      const tech = await get(`SELECT id, name, role_key, is_active FROM users WHERE id = ?`, [technician_id]);
+      if (!tech || tech.role_key !== 'field_operations' || tech.is_active !== 1) {
+        return res.status(400).json({ error: 'Selected technician is not valid' });
+      }
+      technicianName = tech.name;
     }
 
     const id = `TASK_${Date.now().toString(36).toUpperCase()}_${Math.floor(Math.random() * 1000)}`;
@@ -101,7 +117,7 @@ const createTask = async (req, res) => {
         source_ticket_id, created_by, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     `, [
-      id, taskOrgId, technician_id || null, technician_name || null, type || 'Maintenance', title, description || null, location || null,
+      id, taskOrgId, technician_id || null, technicianName, type || 'Maintenance', title, description || null, location || null,
       machine_id || null, machine_name || null, scheduled_date || null, scheduled_time || null, priority || 'Medium', initialStatus,
       source_ticket_id || null, req.user?.id || null, now, now,
     ]);
