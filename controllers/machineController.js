@@ -95,9 +95,9 @@ const createMachine = async (req, res) => {
       INSERT INTO machines (
         device_id, friendly_name, location, health_status, state,
         wash_remaining_seconds, wash_total_seconds, relay1, relay2,
-        firmware_version, gsm_signal, org_id, created_at, last_seen_at
-      ) VALUES (?, ?, ?, 'ONLINE', 'IDLE', 0, 0, 0, 0, 'v2.1.0', 30, ?, ?, ?);
-    `, [id, name, loc, machineOrgId, createdAt, createdAt]);
+        org_id, created_at
+      ) VALUES (?, ?, ?, 'OFFLINE', 'OFFLINE', 0, 0, 0, 0, ?, ?);
+    `, [id, name, loc, machineOrgId, createdAt]);
 
     const created = await get(`SELECT * FROM machines WHERE device_id = ?`, [id]);
     return res.status(201).json(created);
@@ -129,9 +129,9 @@ const registerPairedMachine = async (req, res) => {
         INSERT INTO machines (
           device_id, friendly_name, location, health_status, state,
           wash_remaining_seconds, wash_total_seconds, relay1, relay2,
-          firmware_version, gsm_signal, org_id, created_at, last_seen_at
-        ) VALUES (?, ?, ?, 'ONLINE', 'IDLE', 0, 0, 0, 0, 'v2.1.0', 30, ?, ?, ?);
-      `, [device_id, friendly_name, location, org_id, now, now]);
+          org_id, created_at
+        ) VALUES (?, ?, ?, 'OFFLINE', 'OFFLINE', 0, 0, 0, 0, ?, ?);
+      `, [device_id, friendly_name, location, org_id, now]);
     }
 
     const result = await get(`SELECT * FROM machines WHERE device_id = ?`, [device_id]);

@@ -4,6 +4,7 @@ const { run, get } = require('../config/db');
 const DEVICE_SERVER_HOST = process.env.DEVICE_SERVER_HOST || 'data.upiziva.com';
 const DEVICE_SERVER_PATH = process.env.DEVICE_SERVER_PATH || '/api/device/states';
 const DEVICE_SERVER_API_KEY = process.env.DEVICE_SERVER_API_KEY || '';
+const STALE_AFTER_MS = 90 * 1000;
 
 if (!DEVICE_SERVER_API_KEY) {
   console.warn('DEVICE_SERVER_API_KEY is not set — live device state sync is disabled.');
@@ -76,9 +77,14 @@ const syncLiveDeviceStates = async () => {
         const machineState = (device.state || 'IDLE').toUpperCase();
         const relay1Val = device.relay1 === 'ON' || device.relay1 === 1 ? 1 : 0;
         const relay2Val = device.relay2 === 'ON' || device.relay2 === 1 ? 1 : 0;
-        const fwVersion = device.firmware_version && device.firmware_version !== '??' ? device.firmware_version : '5.3.2';
-        const gsmSig = Math.abs(device.rssi || 21);
-        const lastSeenIso = device.last_seen ? new Date(device.last_seen * 1000).toISOString() : new Date().toISOString();
+        // Only store what the device actually reported — unknown stays NULL instead of a made-up value.
+        const fwVersion = device.firmware_version && device.firmware_version !== '??' ? device.firmware_version : null;
+        const rssi = typeof device.rssi === 'number' && device.rssi < 0 ? Math.round(device.rssi) : null;
+        const uptime = typeof device.uptime === 'number' ? Math.round(device.uptime) : null;
+        const net = device.net ? String(device.net).toLowerCase() : null;
+        const lastSeenIso = device.last_seen ? new Date(device.last_seen * 1000).toISOString() : null;
+        const washRemaining = typeof device.wash_remaining_seconds === 'number' ? device.wash_remaining_seconds : null;
+        const washTotal = typeof device.wash_total_seconds === 'number' ? device.wash_total_seconds : null;
 
         const result = await run(`
           UPDATE machines
@@ -87,10 +93,12 @@ const syncLiveDeviceStates = async () => {
               relay1 = ?,
               relay2 = ?,
               firmware_version = ?,
-              gsm_signal = ?,
-              wash_remaining_seconds = ?,
-              wash_total_seconds = ?,
-              last_seen_at = ?
+              rssi = ?,
+              uptime = ?,
+              net = ?,
+              wash_remaining_seconds = COALESCE(?, wash_remaining_seconds),
+              wash_total_seconds = COALESCE(?, wash_total_seconds),
+              last_seen_at = COALESCE(?, last_seen_at)
           WHERE device_id = ?
         `, [
           healthStatus,
@@ -98,9 +106,11 @@ const syncLiveDeviceStates = async () => {
           relay1Val,
           relay2Val,
           fwVersion,
-          gsmSig,
-          device.wash_remaining_seconds || 0,
-          device.wash_total_seconds || 0,
+          rssi,
+          uptime,
+          net,
+          washRemaining,
+          washTotal,
           lastSeenIso,
           device.device_id,
         ]);
@@ -112,6 +122,19 @@ const syncLiveDeviceStates = async () => {
     }
   } catch (err) {
     console.warn('syncLiveDeviceStates error:', err.message);
+  }
+
+  // Runs even when the device server is unreachable: a machine we haven't heard from recently
+  // (or ever) must not keep showing as ONLINE from a stale row.
+  try {
+    const cutoff = new Date(Date.now() - STALE_AFTER_MS).toISOString();
+    await run(
+      `UPDATE machines SET health_status = 'OFFLINE', state = 'OFFLINE', relay1 = 0, relay2 = 0, uptime = NULL
+       WHERE health_status <> 'OFFLINE' AND (last_seen_at IS NULL OR last_seen_at < ?)`,
+      [cutoff]
+    );
+  } catch (err) {
+    console.warn('stale machine sweep error:', err.message);
   }
   return synced;
 };

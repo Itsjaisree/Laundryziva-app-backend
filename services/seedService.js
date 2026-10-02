@@ -208,8 +208,8 @@ const seedDatabase = async () => {
       wash_total_seconds: 0,
       relay1: 0,
       relay2: 0,
-      firmware_version: '5.3.2',
-      gsm_signal: 0,
+      firmware_version: null,
+      gsm_signal: null,
       org_id: 'ORG_1637D16F',
     },
   ];
@@ -226,7 +226,7 @@ const seedDatabase = async () => {
       `, [
         m.device_id, m.friendly_name, m.location, m.health_status, m.state,
         m.wash_remaining_seconds, m.wash_total_seconds, m.relay1, m.relay2,
-        m.firmware_version, m.gsm_signal, m.org_id, new Date().toISOString(), new Date().toISOString()
+        m.firmware_version, m.gsm_signal, m.org_id, new Date().toISOString(), null
       ]);
     }
   }
