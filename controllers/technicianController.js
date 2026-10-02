@@ -74,7 +74,13 @@ const createTask = async (req, res) => {
     }
 
     const id = `TASK_${Date.now().toString(36).toUpperCase()}_${Math.floor(Math.random() * 1000)}`;
-    const taskOrgId = org_id || req.user?.org_id || 'ORG_1637D16F';
+    // Company-wide support agents have no org of their own, so fall back to the machine's org.
+    let taskOrgId = org_id || req.user?.org_id;
+    if (!taskOrgId && machine_id) {
+      const machine = await get(`SELECT org_id FROM machines WHERE device_id = ?`, [machine_id]);
+      taskOrgId = machine?.org_id;
+    }
+    taskOrgId = taskOrgId || 'ORG_1637D16F';
     const now = new Date().toISOString();
     const initialStatus = technician_id ? 'Assigned' : 'Unassigned';
 

@@ -1,6 +1,8 @@
 const bcrypt = require('bcryptjs');
 const { run, get, all } = require('../config/db');
 
+const COMPANY_WIDE_ROLE_KEYS = ['field_operations', 'support_refund_agent'];
+
 const getUsers = async (req, res) => {
   try {
     const requesterRole = req.user?.role_key;
@@ -58,10 +60,10 @@ const createUser = async (req, res) => {
       return res.status(403).json({ error: 'Super admin accounts cannot be created here' });
     }
 
-    // Technicians are company-wide assets, not owned by any one organization (org_id stays NULL).
-    // Every other role belongs to exactly one organization.
+    // Technicians and customer support are company-wide, not owned by any one organization
+    // (org_id stays NULL). Only organization owners belong to exactly one organization.
     let userOrgId = null;
-    if (role.role_key !== 'field_operations') {
+    if (!COMPANY_WIDE_ROLE_KEYS.includes(role.role_key)) {
       const requestedOrgId = (req.body.org_id || '').toString().trim();
       if (!requestedOrgId) {
         return res.status(400).json({ error: 'Missing required field(s): org_id' });
