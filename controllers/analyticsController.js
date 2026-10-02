@@ -1,11 +1,23 @@
 const { run, get, all } = require('../config/db');
 
+// Owners only ever see their own organization; a different org_id in the query string is ignored for them.
+// Super admin may look at any organization by passing org_id.
+const resolveOrgId = (req) =>
+  req.user?.role_key === 'super_admin' ? req.query.org_id || req.user?.org_id : req.user?.org_id;
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+// "2026-10-03" (a day in India time) -> the UTC instant that day starts, as an ISO string.
+const istDayStartIso = (dateStr) => new Date(Date.parse(`${dateStr}T00:00:00Z`) - IST_OFFSET_MS).toISOString();
+const addDays = (dateStr, n) => new Date(Date.parse(`${dateStr}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+
 /**
  * Get organization analytics summary (Revenue, Washes, Success Rate)
  */
 const getSummary = async (req, res) => {
   try {
-    const orgId = req.query.org_id || req.user?.org_id;
+    const orgId = resolveOrgId(req);
     let whereClause = '';
     const params = [];
 
@@ -77,7 +89,7 @@ const getSummary = async (req, res) => {
  */
 const getDaily = async (req, res) => {
   try {
-    const orgId = req.query.org_id || req.user?.org_id;
+    const orgId = resolveOrgId(req);
     let whereClause = '';
     const params = [];
 
@@ -102,7 +114,18 @@ const getDaily = async (req, res) => {
     }
 
     const dailyList = Object.values(dailyMap);
-    return res.json({ daily: dailyList });
+
+    // Revenue per calendar month (India time), newest last, for the monthly chart
+    const monthlyMap = {};
+    for (const t of txns) {
+      if ((t.status || '').toUpperCase() !== 'SUCCESS' || !t.created_at) continue;
+      const month = new Date(Date.parse(t.created_at) + IST_OFFSET_MS).toISOString().slice(0, 7);
+      if (!monthlyMap[month]) monthlyMap[month] = { month, revenue: 0, washes: 0 };
+      monthlyMap[month].revenue += Number(t.amount) || 0;
+      monthlyMap[month].washes += 1;
+    }
+    const monthlyList = Object.values(monthlyMap).sort((a, b) => a.month.localeCompare(b.month));
+    return res.json({ daily: dailyList, monthly: monthlyList });
   } catch (err) {
     console.error('getDaily error:', err);
     return res.status(500).json({ error: 'Failed to fetch daily analytics' });
@@ -114,7 +137,7 @@ const getDaily = async (req, res) => {
  */
 const getMachinesAnalytics = async (req, res) => {
   try {
-    const orgId = req.query.org_id || req.user?.org_id;
+    const orgId = resolveOrgId(req);
     let machWhere = '';
     const machParams = [];
 
@@ -187,7 +210,7 @@ const getMachinesAnalytics = async (req, res) => {
  */
 const exportAnalytics = async (req, res) => {
   try {
-    const orgId = req.query.org_id || req.user?.org_id;
+    const orgId = resolveOrgId(req);
 
     // Fetch Organization Info
     let orgName = 'Laundryziva Organization';
@@ -196,23 +219,61 @@ const exportAnalytics = async (req, res) => {
       if (orgRecord?.name) orgName = orgRecord.name;
     }
 
-    // Fetch Transactions
-    let txnSql = `SELECT * FROM transactions`;
+    // Optional filters. Nothing selected = every transaction of every machine in the organization.
+    const { from, to, machine_id: machineFilter } = req.query;
+    if ((from && !DATE_RE.test(from)) || (to && !DATE_RE.test(to))) {
+      return res.status(400).json({ error: 'from and to must be dates like 2026-10-03' });
+    }
+    if (from && to && from > to) {
+      return res.status(400).json({ error: 'The start date must be before the end date' });
+    }
+
+    const conditions = [];
     const params = [];
     if (orgId) {
-      txnSql += ` WHERE (org_id = ? OR org_id IS NULL)`;
+      conditions.push(`(org_id = ? OR org_id IS NULL)`);
       params.push(orgId);
     }
-    txnSql += ` ORDER BY created_at DESC`;
 
+    let machineLabel = 'All machines';
+    if (machineFilter && machineFilter !== 'all') {
+      const m = await get(
+        `SELECT device_id, friendly_name FROM machines WHERE device_id = ?${orgId ? ' AND (org_id = ? OR org_id IS NULL)' : ''}`,
+        orgId ? [machineFilter, orgId] : [machineFilter]
+      );
+      if (!m) {
+        return res.status(404).json({ error: 'Machine not found' });
+      }
+      conditions.push(`device_id = ?`);
+      params.push(m.device_id);
+      machineLabel = m.friendly_name || m.device_id;
+    }
+    if (from) {
+      conditions.push(`created_at >= ?`);
+      params.push(istDayStartIso(from));
+    }
+    if (to) {
+      conditions.push(`created_at < ?`);
+      params.push(istDayStartIso(addDays(to, 1)));
+    }
+
+    const txnSql = `SELECT * FROM transactions${conditions.length ? ` WHERE ${conditions.join(' AND ')}` : ''} ORDER BY created_at DESC`;
     const txns = await all(txnSql, params);
 
-    // Fetch Machines
-    let machSql = `SELECT * FROM machines`;
+    // Machines listed in the performance table: all of the org's machines, or just the chosen one
+    const machConditions = [];
+    const machQueryParams = [];
     if (orgId) {
-      machSql += ` WHERE (org_id = ? OR org_id IS NULL)`;
+      machConditions.push(`(org_id = ? OR org_id IS NULL)`);
+      machQueryParams.push(orgId);
     }
-    const machines = await all(machSql, params);
+    if (machineFilter && machineFilter !== 'all') {
+      machConditions.push(`device_id = ?`);
+      machQueryParams.push(machineFilter);
+    }
+    const machines = await all(`SELECT * FROM machines${machConditions.length ? ` WHERE ${machConditions.join(' AND ')}` : ''}`, machQueryParams);
+
+    const nameById = Object.fromEntries(machines.map((m) => [m.device_id, m.friendly_name || m.device_id]));
 
     // Calculate Summary Totals
     let totalRevenue = 0;
@@ -243,6 +304,8 @@ const exportAnalytics = async (req, res) => {
     // 1. Report Header
     lines.push(`${escapeCsv('Report')},${escapeCsv('Organization Analytics Summary Report')}`);
     lines.push(`${escapeCsv('Organization Name')},${escapeCsv(orgName)}`);
+    lines.push(`${escapeCsv('Period')},${escapeCsv(from || to ? `${from || 'start'} to ${to || 'today'}` : 'All time')}`);
+    lines.push(`${escapeCsv('Machines')},${escapeCsv(machineLabel)}`);
     lines.push(`${escapeCsv('Generated Date')},${escapeCsv(new Date().toISOString())}`);
     lines.push(`${escapeCsv('Total Revenue (INR)')},${escapeCsv(totalRevenue.toFixed(2))}`);
     lines.push(`${escapeCsv('Total Washes')},${escapeCsv(totalCount)}`);
@@ -270,7 +333,7 @@ const exportAnalytics = async (req, res) => {
         lines.push([
           escapeCsv(t.txn_id),
           escapeCsv(t.created_at),
-          escapeCsv(t.machine_name),
+          escapeCsv(nameById[t.device_id] || t.machine_name),
           escapeCsv(t.device_id),
           escapeCsv(Number(t.amount || 0).toFixed(2)),
           escapeCsv(t.status),
@@ -337,7 +400,7 @@ const exportAnalytics = async (req, res) => {
     const csvContent = lines.join('\n');
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="analytics_report.csv"');
+    res.setHeader('Content-Disposition', 'attachment; filename="laundryziva_report.csv"');
     return res.status(200).send(csvContent);
   } catch (err) {
     console.error('exportAnalytics error:', err);
