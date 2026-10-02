@@ -71,10 +71,10 @@ const OWNER_PERMISSIONS = {
   view_notifications: 'view',
   view_organizations: 'view',
   view_users: 'view',
-  // Maintenance tickets (raise/track Open → In Progress → Resolved) — distinct from raw
-  // system/hardware debug logs despite the shared permission name; owner needs write
-  // access since they also raise and resolve tickets here, not just view them.
-  view_service_logs: 'write',
+  // Maintenance tickets (track Open → In Progress → Resolved) — distinct from raw
+  // system/hardware debug logs despite the shared permission name. Owner can see
+  // ticket status but cannot raise/resolve/reassign — that's support_refund_agent's job.
+  view_service_logs: 'view',
 };
 
 const FIELD_OPERATIONS_PERMISSIONS = {
