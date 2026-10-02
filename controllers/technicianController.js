@@ -4,8 +4,13 @@ const { run, get, all } = require('../config/db');
 const getTasks = async (req, res) => {
   try {
     const { status, date, from_date, to_date, all: allFlag } = req.query;
-    const orgId = req.query.org_id || req.user?.org_id;
-    const technicianId = req.query.technician_id || (allFlag === 'true' ? null : req.user?.id);
+    // super_admin's own org_id is only a seed placeholder, so don't scope them unless they ask to.
+    const orgId = req.user?.role_key === 'super_admin' ? req.query.org_id : (req.query.org_id || req.user?.org_id);
+    // Technicians only ever see their own tasks; owners and support may list everyone's.
+    const isTechnician = req.user?.role_key === 'field_operations';
+    const technicianId = isTechnician
+      ? req.user.id
+      : (req.query.technician_id || (allFlag === 'true' ? null : req.user?.id));
 
     let sql = `SELECT * FROM technician_tasks WHERE 1=1`;
     const params = [];
