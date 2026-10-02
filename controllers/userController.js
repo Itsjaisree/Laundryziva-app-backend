@@ -3,8 +3,9 @@ const { run, get, all } = require('../config/db');
 
 const getUsers = async (req, res) => {
   try {
-    const orgId = req.query.org_id || req.user?.org_id;
     const requesterRole = req.user?.role_key;
+    // super_admin's own org_id is a seed placeholder, so only scope them when they ask to.
+    const orgId = requesterRole === 'super_admin' ? req.query.org_id : (req.query.org_id || req.user?.org_id);
     const isPrivileged = requesterRole === 'super_admin' || requesterRole === 'organization_owner';
     // Non-privileged roles (e.g. support_refund_agent picking a technician for a task) may only ever list technicians.
     const role_key = isPrivileged ? req.query.role_key : 'field_operations';
@@ -38,10 +39,29 @@ const getUsers = async (req, res) => {
 
 const createUser = async (req, res) => {
   try {
-    const { name, email, phone, password, role_id, role_key, role_name, org_id } = req.body;
+    const { name, email, phone, password, role_id, org_id } = req.body;
 
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
+    const missing = ['name', 'email', 'password', 'role_id', 'org_id'].filter((f) => !(req.body[f] || '').toString().trim());
+    if (missing.length > 0) {
+      return res.status(400).json({ error: `Missing required field(s): ${missing.join(', ')}` });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    // role_key / role_name always come from the roles table, never from the client —
+    // otherwise a technician could be saved with an owner's role_key.
+    const role = await get(`SELECT id, role_key, name FROM roles WHERE id = ?`, [role_id]);
+    if (!role) {
+      return res.status(400).json({ error: 'Unknown role' });
+    }
+    if (role.role_key === 'super_admin') {
+      return res.status(403).json({ error: 'Super admin accounts cannot be created here' });
+    }
+
+    const org = await get(`SELECT id FROM organizations WHERE id = ?`, [org_id]);
+    if (!org) {
+      return res.status(400).json({ error: 'Unknown organization' });
     }
 
     const existingUser = await get(`SELECT id FROM users WHERE LOWER(email) = LOWER(?)`, [email.trim()]);
@@ -50,18 +70,12 @@ const createUser = async (req, res) => {
     }
 
     const userId = `USR_${Date.now().toString(36).toUpperCase()}_${Math.floor(Math.random() * 1000)}`;
-    const passToHash = password || 'User@123';
-    const passHash = await bcrypt.hash(passToHash, 10);
-
-    const userRoleKey = role_key || 'organization_owner';
-    const userRoleName = role_name || 'Organization Owner';
-    const userRoleId = role_id || 'ROLE_ORGANIZATION_OWNER';
-    const userOrgId = org_id || req.user?.org_id || 'ORG_1637D16F';
+    const passHash = await bcrypt.hash(password, 10);
 
     await run(`
       INSERT INTO users (id, name, email, phone, password_hash, role_id, role_key, role_name, org_id, is_active, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?);
-    `, [userId, name || 'New User', email.trim(), phone || '', passHash, userRoleId, userRoleKey, userRoleName, userOrgId, new Date().toISOString()]);
+    `, [userId, name.trim(), email.trim(), (phone || '').trim(), passHash, role.id, role.role_key, role.name, org.id, new Date().toISOString()]);
 
     const createdUser = await get(`SELECT id, name, email, phone, role_id, role_key, role_name, org_id, is_active, created_at FROM users WHERE id = ?`, [userId]);
 
