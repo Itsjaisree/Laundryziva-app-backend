@@ -4,7 +4,12 @@ const ORG_SAFE_COLUMNS = `id, name, city, contact_name, contact_email, contact_p
 
 const getOrganizations = async (req, res) => {
   try {
-    const orgs = await all(`SELECT ${ORG_SAFE_COLUMNS} FROM organizations ORDER BY created_at DESC`);
+    // req.user is absent on the internal (device-server) call, which needs the full
+    // list for the pairing dropdown. A logged-in organization_owner only sees their own org.
+    const scopeToOwnOrg = req.user && req.user.role_key !== 'super_admin';
+    const orgs = scopeToOwnOrg
+      ? await all(`SELECT ${ORG_SAFE_COLUMNS} FROM organizations WHERE id = ? ORDER BY created_at DESC`, [req.user.org_id])
+      : await all(`SELECT ${ORG_SAFE_COLUMNS} FROM organizations ORDER BY created_at DESC`);
     return res.json({ organizations: orgs });
   } catch (err) {
     console.error('getOrganizations error:', err);

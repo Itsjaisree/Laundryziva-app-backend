@@ -69,12 +69,8 @@ const OWNER_PERMISSIONS = {
   view_service_history: 'view',
   view_server_node_metrics: 'view',
   view_notifications: 'view',
-  role_management: 'write',
-  edit_role_permissions: 'write',
-  view_organizations: 'write',
-  view_users: 'write',
-  firmware_management: 'write',
-  view_service_logs: 'view',
+  view_organizations: 'view',
+  view_users: 'view',
 };
 
 const FIELD_OPERATIONS_PERMISSIONS = {
