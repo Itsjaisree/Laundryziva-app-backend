@@ -20,9 +20,8 @@ const getUsers = async (req, res) => {
       sql += ` AND role_key = ?`;
       params.push(role_key);
     }
-    // super_admin's org_id is seeded to a real org (NOT NULL constraint), since the role
-    // itself is global-scope rather than tied to any one org — never show it in an org's
-    // own user list.
+    // super_admin's org_id is only a seed placeholder (the role is global-scope, not tied
+    // to any one org) — never show it in an org's own user list.
     if (requesterRole !== 'super_admin') {
       sql += ` AND role_key != 'super_admin'`;
     }
@@ -39,9 +38,9 @@ const getUsers = async (req, res) => {
 
 const createUser = async (req, res) => {
   try {
-    const { name, email, phone, password, role_id, org_id } = req.body;
+    const { name, email, phone, password, role_id } = req.body;
 
-    const missing = ['name', 'email', 'password', 'role_id', 'org_id'].filter((f) => !(req.body[f] || '').toString().trim());
+    const missing = ['name', 'email', 'password', 'role_id'].filter((f) => !(req.body[f] || '').toString().trim());
     if (missing.length > 0) {
       return res.status(400).json({ error: `Missing required field(s): ${missing.join(', ')}` });
     }
@@ -59,9 +58,19 @@ const createUser = async (req, res) => {
       return res.status(403).json({ error: 'Super admin accounts cannot be created here' });
     }
 
-    const org = await get(`SELECT id FROM organizations WHERE id = ?`, [org_id]);
-    if (!org) {
-      return res.status(400).json({ error: 'Unknown organization' });
+    // Technicians are company-wide assets, not owned by any one organization (org_id stays NULL).
+    // Every other role belongs to exactly one organization.
+    let userOrgId = null;
+    if (role.role_key !== 'field_operations') {
+      const requestedOrgId = (req.body.org_id || '').toString().trim();
+      if (!requestedOrgId) {
+        return res.status(400).json({ error: 'Missing required field(s): org_id' });
+      }
+      const org = await get(`SELECT id FROM organizations WHERE id = ?`, [requestedOrgId]);
+      if (!org) {
+        return res.status(400).json({ error: 'Unknown organization' });
+      }
+      userOrgId = org.id;
     }
 
     const existingUser = await get(`SELECT id FROM users WHERE LOWER(email) = LOWER(?)`, [email.trim()]);
@@ -75,7 +84,7 @@ const createUser = async (req, res) => {
     await run(`
       INSERT INTO users (id, name, email, phone, password_hash, role_id, role_key, role_name, org_id, is_active, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?);
-    `, [userId, name.trim(), email.trim(), (phone || '').trim(), passHash, role.id, role.role_key, role.name, org.id, new Date().toISOString()]);
+    `, [userId, name.trim(), email.trim(), (phone || '').trim(), passHash, role.id, role.role_key, role.name, userOrgId, new Date().toISOString()]);
 
     const createdUser = await get(`SELECT id, name, email, phone, role_id, role_key, role_name, org_id, is_active, created_at FROM users WHERE id = ?`, [userId]);
 

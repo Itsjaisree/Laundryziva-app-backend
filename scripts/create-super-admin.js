@@ -6,7 +6,7 @@ require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const { run, get } = require('../config/db');
 
-// users.org_id is NOT NULL, and super_admin is global-scope — same placeholder org the seed uses.
+// super_admin is global-scope; the seed stores it against this placeholder org, so match that.
 const PLACEHOLDER_ORG_ID = 'ORG_1637D16F';
 
 const main = async () => {
