@@ -26,3 +26,6 @@ logs/
 Thumbs.db
 .vscode/
 .idea/
+
+# Uploaded task photos (evidence) — never committed
+uploads/

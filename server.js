@@ -19,6 +19,7 @@ const customerCareRoutes = require('./routes/customerCareRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const technicianRoutes = require('./routes/technicianRoutes');
 const chatRoutes = require('./routes/chatRoutes');
+const photoRoutes = require('./routes/photoRoutes');
 const internalRoutes = require('./routes/internalRoutes');
 
 const app = express();
@@ -65,10 +66,17 @@ app.use('/api/customercare', customerCareRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/technician', technicianRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/photos', photoRoutes);
 app.use('/api/internal', internalRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'The uploaded file is too large (photos can be up to 8 MB)' });
+  }
+  if (err.status && err.status >= 400 && err.status < 500) {
+    return res.status(err.status).json({ error: 'Bad request' });
+  }
   console.error('Unhandled Server Error:', err);
   res.status(500).json({ error: 'Internal Server Error', message: err.message });
 });

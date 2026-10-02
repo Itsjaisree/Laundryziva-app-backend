@@ -242,6 +242,26 @@ const initSchema = async () => {
     );
   `);
 
+  // Photos uploaded by technicians as arrival/completion evidence. Files live on disk under
+  // UPLOADS_DIR (never served statically); this row is what authorizes and describes them.
+  await run(`
+    CREATE TABLE IF NOT EXISTS task_photos (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      mime TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      uploaded_by TEXT NOT NULL,
+      latitude DOUBLE PRECISION,
+      longitude DOUBLE PRECISION,
+      captured_at TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (task_id) REFERENCES technician_tasks (id) ON DELETE CASCADE
+    );
+  `);
+  await run(`CREATE INDEX IF NOT EXISTS idx_task_photos_task ON task_photos (task_id, kind, created_at);`);
+
   // Revoked Tokens Table (JWT logout / invalidation)
   await run(`
     CREATE TABLE IF NOT EXISTS revoked_tokens (
