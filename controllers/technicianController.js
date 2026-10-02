@@ -340,8 +340,135 @@ const postTaskMessage = async (req, res) => {
   }
 };
 
+
+const EDIT_PRIORITIES = ['Low', 'Medium', 'High'];
+
+const addDispatchMessage = async (task, text, now) => {
+  const msgId = `MSG_${Date.now().toString(36).toUpperCase()}_${Math.floor(Math.random() * 1000)}`;
+  await run(`
+    INSERT INTO task_messages (id, task_id, org_id, sender_id, sender_name, sender_role, message, is_system, created_at)
+    VALUES (?, ?, ?, NULL, 'LaundryZiva Dispatch', 'system', ?, 1, ?);
+  `, [msgId, task.id, task.org_id, text, now]);
+};
+
+// PUT /api/technician/tasks/:id — support edits details, reschedules, or reassigns
+const updateTask = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const body = req.body || {};
+
+    const task = await get(`SELECT * FROM technician_tasks WHERE id = ?`, [id]);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    if (task.status === 'Completed') {
+      return res.status(409).json({ error: 'Completed tasks cannot be edited' });
+    }
+
+    const updates = {};
+    const has = (f) => Object.prototype.hasOwnProperty.call(body, f);
+
+    if (has('title')) {
+      if (!(body.title || '').toString().trim()) {
+        return res.status(400).json({ error: 'title cannot be empty' });
+      }
+      updates.title = body.title.toString().trim();
+    }
+    ['description', 'location', 'type', 'machine_name'].forEach((f) => {
+      if (has(f)) updates[f] = body[f] === null ? null : body[f].toString().trim();
+    });
+    if (has('type') && !updates.type) {
+      return res.status(400).json({ error: 'type cannot be empty' });
+    }
+    if (has('priority')) {
+      if (!EDIT_PRIORITIES.includes(body.priority)) {
+        return res.status(400).json({ error: 'priority must be Low, Medium or High' });
+      }
+      updates.priority = body.priority;
+    }
+    if (has('scheduled_date')) {
+      const d = body.scheduled_date;
+      if (d) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(new Date(`${d}T00:00:00Z`).getTime())) {
+          return res.status(400).json({ error: 'scheduled_date must be a valid YYYY-MM-DD date' });
+        }
+      }
+      updates.scheduled_date = d || null;
+    }
+    if (has('scheduled_time')) {
+      updates.scheduled_time = (body.scheduled_time || '').toString().trim() || null;
+    }
+
+    if (has('machine_id')) {
+      const machineId = (body.machine_id || '').toString().trim() || null;
+      updates.machine_id = machineId;
+      if (machineId) {
+        const machine = await get(`SELECT org_id FROM machines WHERE device_id = ?`, [machineId]);
+        if (machine?.org_id) updates.org_id = machine.org_id;
+      }
+    }
+
+    let technicianChanged = false;
+    if (has('technician_id')) {
+      const techId = body.technician_id || null;
+      if (techId) {
+        const tech = await get(`SELECT id, name, role_key, is_active FROM users WHERE id = ?`, [techId]);
+        if (!tech || tech.role_key !== 'field_operations' || tech.is_active !== 1) {
+          return res.status(400).json({ error: 'Selected technician is not valid' });
+        }
+        updates.technician_id = tech.id;
+        updates.technician_name = tech.name;
+      } else {
+        updates.technician_id = null;
+        updates.technician_name = null;
+      }
+      technicianChanged = (updates.technician_id || null) !== (task.technician_id || null);
+      // A different technician starts the task fresh.
+      if (technicianChanged) {
+        updates.status = updates.technician_id ? 'Assigned' : 'Unassigned';
+      } else if (updates.technician_id && task.status === 'Unassigned') {
+        updates.status = 'Assigned';
+      }
+    }
+
+    const fields = Object.keys(updates);
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'No editable fields provided' });
+    }
+
+    const now = new Date().toISOString();
+    updates.updated_at = now;
+    const cols = Object.keys(updates);
+    await run(
+      `UPDATE technician_tasks SET ${cols.map((c) => `${c} = ?`).join(', ')} WHERE id = ?`,
+      [...cols.map((c) => updates[c]), id]
+    );
+
+    if (technicianChanged) {
+      await addDispatchMessage(
+        task,
+        updates.technician_id ? `This task has been assigned to ${updates.technician_name}.` : 'This task is no longer assigned to a technician.',
+        now
+      );
+    }
+    const rescheduled =
+      (has('scheduled_date') && (updates.scheduled_date || null) !== (task.scheduled_date || null)) ||
+      (has('scheduled_time') && (updates.scheduled_time || null) !== (task.scheduled_time || null));
+    if (rescheduled) {
+      const when = [updates.scheduled_date ?? task.scheduled_date, updates.scheduled_time ?? task.scheduled_time].filter(Boolean).join(' ');
+      await addDispatchMessage(task, `This task was rescheduled${when ? ` to ${when}` : ''}.`, now);
+    }
+
+    const updated = await get(`SELECT * FROM technician_tasks WHERE id = ?`, [id]);
+    return res.json({ message: 'Task updated', task: updated });
+  } catch (err) {
+    console.error('updateTask error:', err);
+    return res.status(500).json({ error: 'Failed to update task' });
+  }
+};
 module.exports = {
   getTasks,
+  updateTask,
   getTask,
   createTask,
   startTask,

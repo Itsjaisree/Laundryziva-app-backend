@@ -10,6 +10,7 @@ const canViewTasks = requireRole('organization_owner', 'field_operations', 'supp
 router.get('/tasks', authenticateToken, canViewTasks, technicianController.getTasks);
 router.get('/tasks/:id', authenticateToken, canViewTasks, technicianController.getTask);
 router.post('/tasks', authenticateToken, requireRole('organization_owner', 'support_refund_agent'), technicianController.createTask);
+router.put('/tasks/:id', authenticateToken, requireRole('support_refund_agent'), technicianController.updateTask);
 router.post('/tasks/:id/start', authenticateToken, canWorkOnTasks, technicianController.startTask);
 router.post('/tasks/:id/complete', authenticateToken, canWorkOnTasks, technicianController.completeTask);
 router.post('/tasks/:id/photos', authenticateToken, canWorkOnTasks, technicianController.updateTaskPhotos);
