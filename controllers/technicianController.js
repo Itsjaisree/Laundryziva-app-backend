@@ -1,5 +1,6 @@
 const { run, get, all } = require('../config/db');
 const { releaseMachineControl } = require('../services/machineControlService');
+const { notifyUsers, supportUserIds } = require('../services/pushService');
 
 // GET /api/technician/tasks
 const getTasks = async (req, res) => {
@@ -123,6 +124,15 @@ const createTask = async (req, res) => {
     ]);
 
     const created = await get(`SELECT * FROM technician_tasks WHERE id = ?`, [id]);
+    if (technician_id) {
+      notifyUsers([technician_id], {
+        title: 'New task assigned',
+        body: [title, created.location, [scheduled_date, scheduled_time].filter(Boolean).join(' ')].filter(Boolean).join(' · '),
+        data: { type: 'task', taskId: id },
+        orgId: taskOrgId,
+        icon: 'construct-outline',
+      });
+    }
     return res.status(201).json({ message: 'Task created successfully', task_id: id, task: created });
   } catch (err) {
     console.error('createTask error:', err);
@@ -227,6 +237,15 @@ const completeTask = async (req, res) => {
     releaseMachineControl(task.machine_id).catch((e) => console.warn('release after complete failed:', e.message));
 
     const updated = await get(`SELECT * FROM technician_tasks WHERE id = ?`, [id]);
+    supportUserIds().then((ids) =>
+      notifyUsers(ids, {
+        title: 'Task completed',
+        body: `${updated.technician_name || 'A technician'} finished "${updated.title}"${updated.location ? ` at ${updated.location}` : ''}`,
+        data: { type: 'task', taskId: id },
+        orgId: updated.org_id,
+        icon: 'checkmark-done-outline',
+      })
+    );
     return res.json({ message: 'Task marked completed', task: updated });
   } catch (err) {
     console.error('completeTask error:', err);
@@ -273,6 +292,15 @@ const requestTaskChange = async (req, res) => {
     releaseMachineControl(task.machine_id).catch((e) => console.warn('release after change request failed:', e.message));
 
     const updated = await get(`SELECT * FROM technician_tasks WHERE id = ?`, [id]);
+    supportUserIds().then((ids) =>
+      notifyUsers(ids, {
+        title: 'Change request',
+        body: `${task.technician_name || 'A technician'} asked for a ${type} on "${task.title}": ${reason}`,
+        data: { type: 'task', taskId: id },
+        orgId: task.org_id,
+        icon: 'swap-horizontal-outline',
+      })
+    );
     return res.json({ message: 'Change request submitted', task: updated });
   } catch (err) {
     console.error('requestTaskChange error:', err);
@@ -406,6 +434,22 @@ const updateTask = async (req, res) => {
     }
 
     const updated = await get(`SELECT * FROM technician_tasks WHERE id = ?`, [id]);
+    const alert = { data: { type: 'task', taskId: id }, orgId: updated.org_id, icon: 'construct-outline' };
+    if (technicianChanged) {
+      if (task.technician_id) {
+        notifyUsers([task.technician_id], { ...alert, title: 'Task reassigned', body: `"${task.title}" is no longer assigned to you.` });
+      }
+      if (updated.technician_id) {
+        notifyUsers([updated.technician_id], { ...alert, title: 'New task assigned', body: [updated.title, updated.location].filter(Boolean).join(' · ') });
+      }
+    } else if (updated.technician_id && (rescheduled || fields.some((f) => ['title', 'description', 'location', 'machine_id', 'machine_name', 'priority'].includes(f)))) {
+      const when = [updated.scheduled_date, updated.scheduled_time].filter(Boolean).join(' ');
+      notifyUsers([updated.technician_id], {
+        ...alert,
+        title: 'Task updated',
+        body: rescheduled && when ? `"${updated.title}" is now scheduled for ${when}.` : `Details of "${updated.title}" were changed.`,
+      });
+    }
     return res.json({ message: 'Task updated', task: updated });
   } catch (err) {
     console.error('updateTask error:', err);

@@ -19,6 +19,7 @@ const customerCareRoutes = require('./routes/customerCareRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const technicianRoutes = require('./routes/technicianRoutes');
 const chatRoutes = require('./routes/chatRoutes');
+const pushRoutes = require('./routes/pushRoutes');
 const photoRoutes = require('./routes/photoRoutes');
 const internalRoutes = require('./routes/internalRoutes');
 
@@ -66,6 +67,7 @@ app.use('/api/customercare', customerCareRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/technician', technicianRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/push', pushRoutes);
 app.use('/api/photos', photoRoutes);
 app.use('/api/internal', internalRoutes);
 

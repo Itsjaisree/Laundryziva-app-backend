@@ -1,4 +1,5 @@
 const { run, get, all } = require('../config/db');
+const { notifyUsers, supportUserIds } = require('../services/pushService');
 
 const MAX_MESSAGE_LENGTH = 2000;
 const INITIAL_PAGE = 200;
@@ -138,6 +139,16 @@ const postMessage = async (req, res) => {
       `SELECT id, task_id, sender_id, sender_name, sender_role, message, is_system, created_at FROM task_messages WHERE id = ?`,
       [id]
     );
+    // Alert the other side: support if the technician wrote, the assigned technician if support wrote.
+    const recipients = senderRole === 'technician' ? await supportUserIds() : [task.technician_id];
+    notifyUsers(recipients.filter((uid) => uid !== req.user.id), {
+      title: `${req.user.name || 'New message'} · ${task.title}`,
+      body: text.length > 140 ? `${text.slice(0, 137)}...` : text,
+      data: { type: 'chat', taskId: task.id },
+      orgId: task.org_id,
+      icon: 'chatbubble-ellipses-outline',
+    });
+
     return res.status(201).json({ message: created });
   } catch (err) {
     console.error('postMessage error:', err);

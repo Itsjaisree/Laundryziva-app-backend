@@ -152,6 +152,18 @@ const initSchema = async () => {
     );
   `);
 
+  // Expo push tokens, one row per device
+  await run(`
+    CREATE TABLE IF NOT EXISTS push_tokens (
+      token TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      platform TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
+  await run(`CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens (user_id);`);
+
   // Customer Care Tickets Table
   await run(`
     CREATE TABLE IF NOT EXISTS customer_care_tickets (
