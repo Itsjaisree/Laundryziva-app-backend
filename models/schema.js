@@ -152,6 +152,9 @@ const initSchema = async () => {
     );
   `);
 
+  // The notification service has always written org_id; the original table never had the column.
+  await run(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS org_id TEXT;`);
+
   // Expo push tokens, one row per device
   await run(`
     CREATE TABLE IF NOT EXISTS push_tokens (
