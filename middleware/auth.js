@@ -67,8 +67,20 @@ const requireRole = (...allowedRoleKeys) => (req, res, next) => {
   return res.status(403).json({ error: 'You do not have permission to perform this action' });
 };
 
+// Unlike requireRole there is NO super_admin bypass — for actions that exactly one role may ever do.
+const requireStrictRole = (...allowedRoleKeys) => (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication token required' });
+  }
+  if (allowedRoleKeys.includes(req.user.role_key)) {
+    return next();
+  }
+  return res.status(403).json({ error: 'You do not have permission to perform this action' });
+};
+
 module.exports = {
   authenticateToken,
   optionalAuth,
   requireRole,
+  requireStrictRole,
 };

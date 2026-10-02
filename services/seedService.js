@@ -65,7 +65,6 @@ const OWNER_PERMISSIONS = {
   add_machine_button: 'write',
   view_device_identity_metrics: 'view',
   view_relay_status: 'view',
-  machine_controls: 'write',
   view_service_history: 'view',
   view_server_node_metrics: 'view',
   view_notifications: 'view',

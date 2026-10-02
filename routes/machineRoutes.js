@@ -1,12 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const machineController = require('../controllers/machineController');
-const { authenticateToken, requireRole } = require('../middleware/auth');
+const { authenticateToken, requireRole, requireStrictRole } = require('../middleware/auth');
 
-const canControlMachines = requireRole('organization_owner', 'field_operations');
 // Adding/editing/removing machine records is handled by our own team via the device
-// server's pairing workflow, not by organization owners — they get read + operational
-// control (start/stop/relay) on their fleet, but not record management.
+// server's pairing workflow, not by organization owners.
 const canManageMachines = requireRole();
 
 router.get('/machines', authenticateToken, machineController.getMachines);
@@ -21,9 +19,8 @@ router.get('/machines/:id', authenticateToken, machineController.getMachineById)
 router.put('/machines/:id', authenticateToken, canManageMachines, machineController.updateMachine);
 router.delete('/machines/:id', authenticateToken, canManageMachines, machineController.deleteMachine);
 
-router.post('/machines/:id/start', authenticateToken, canControlMachines, machineController.startMachine);
-router.post('/machines/:id/stop', authenticateToken, canControlMachines, machineController.stopMachine);
-router.post('/machines/:id/reboot', authenticateToken, canControlMachines, machineController.rebootMachine);
-router.post('/machines/:id/relay', authenticateToken, canControlMachines, machineController.toggleRelay);
+// Physical machine control is for field technicians only — no owner, support, or super_admin
+// access — and controlMachine further requires a started task for this specific machine.
+router.post('/machines/:id/control', authenticateToken, requireStrictRole('field_operations'), machineController.controlMachine);
 
 module.exports = router;

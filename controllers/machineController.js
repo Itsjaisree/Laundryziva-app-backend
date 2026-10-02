@@ -1,5 +1,6 @@
 const { run, get, all } = require('../config/db');
 const { syncLiveDeviceStates } = require('../services/deviceServerService');
+const { isValidAction, performControl } = require('../services/machineControlService');
 
 const getMachines = async (req, res) => {
   try {
@@ -192,67 +193,36 @@ const deleteMachine = async (req, res) => {
   }
 };
 
-const startMachine = async (req, res) => {
+// Real machine control — technicians only, and only while they have a started task for this machine.
+const controlMachine = async (req, res) => {
   try {
     const { id } = req.params;
-    const { transaction_id } = req.body;
+    const { action } = req.body || {};
 
-    await run(`
-      UPDATE machines 
-      SET state = 'WASHING', wash_total_seconds = 3540, wash_remaining_seconds = 3540, relay1 = 1, current_txn_id = ? 
-      WHERE device_id = ?
-    `, [transaction_id || null, id]);
+    if (!isValidAction(action)) {
+      return res.status(400).json({ error: 'Unknown control action' });
+    }
 
-    return res.json({ success: true, message: `Machine ${id} started successfully` });
+    const task = await get(
+      `SELECT id FROM technician_tasks WHERE technician_id = ? AND machine_id = ? AND status = 'In Progress' LIMIT 1`,
+      [req.user.id, id]
+    );
+    if (!task) {
+      return res.status(403).json({ error: 'Machine controls are only available while you are working on a started task for this machine' });
+    }
+
+    const result = await performControl(id, action);
+    if (!result.ok) {
+      const passthrough = [404, 409, 503];
+      const status = passthrough.includes(result.status) ? result.status : 502;
+      return res.status(status).json({ error: result.error || 'The device server rejected the command' });
+    }
+
+    console.log(`machine-control user=${req.user.id} machine=${id} action=${action} task=${task.id}`);
+    return res.json({ success: true, message: 'Command sent to the machine', auto_revert_seconds: result.autoRevertSeconds });
   } catch (err) {
-    console.error('startMachine error:', err);
-    return res.status(500).json({ error: 'Failed to start machine' });
-  }
-};
-
-const stopMachine = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    await run(`
-      UPDATE machines 
-      SET state = 'IDLE', wash_total_seconds = 0, wash_remaining_seconds = 0, relay1 = 0, relay2 = 0, current_txn_id = NULL 
-      WHERE device_id = ?
-    `, [id]);
-
-    return res.json({ success: true, message: `Machine ${id} stopped successfully` });
-  } catch (err) {
-    console.error('stopMachine error:', err);
-    return res.status(500).json({ error: 'Failed to stop machine' });
-  }
-};
-
-const rebootMachine = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    await run(`UPDATE machines SET last_seen_at = ? WHERE device_id = ?`, [new Date().toISOString(), id]);
-    return res.json({ success: true, message: `Machine ${id} reboot sequence initiated` });
-  } catch (err) {
-    console.error('rebootMachine error:', err);
-    return res.status(500).json({ error: 'Failed to reboot machine' });
-  }
-};
-
-const toggleRelay = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { relay, action } = req.body;
-
-    const relayCol = relay === 2 ? 'relay2' : 'relay1';
-    const stateVal = action === 'ON' ? 1 : 0;
-
-    await run(`UPDATE machines SET ${relayCol} = ? WHERE device_id = ?`, [stateVal, id]);
-
-    return res.json({ success: true, message: `Relay ${relay} set to ${action}` });
-  } catch (err) {
-    console.error('toggleRelay error:', err);
-    return res.status(500).json({ error: 'Failed to toggle relay' });
+    console.error('controlMachine error:', err);
+    return res.status(500).json({ error: 'Failed to send machine command' });
   }
 };
 
@@ -264,8 +234,5 @@ module.exports = {
   registerPairedMachine,
   updateMachine,
   deleteMachine,
-  startMachine,
-  stopMachine,
-  rebootMachine,
-  toggleRelay,
+  controlMachine,
 };

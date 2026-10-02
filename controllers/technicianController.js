@@ -1,4 +1,5 @@
 const { run, get, all } = require('../config/db');
+const { releaseMachineControl } = require('../services/machineControlService');
 
 // GET /api/technician/tasks
 const getTasks = async (req, res) => {
@@ -154,7 +155,7 @@ const completeTask = async (req, res) => {
     const { id } = req.params;
     const { verification_photo_url, after_photos } = req.body;
 
-    const task = await get(`SELECT id FROM technician_tasks WHERE id = ?`, [id]);
+    const task = await get(`SELECT id, machine_id FROM technician_tasks WHERE id = ?`, [id]);
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
     }
@@ -178,6 +179,9 @@ const completeTask = async (req, res) => {
       SET status = 'Completed', verification_photo_url = ?, after_photos = ?, updated_at = ? 
       WHERE id = ?
     `, [primaryVerificationPhoto, afterPhotosJson, new Date().toISOString(), id]);
+
+    // Work is over: the technician's control of this machine ends and any forced relay is released.
+    releaseMachineControl(task.machine_id).catch((e) => console.warn('release after complete failed:', e.message));
 
     const updated = await get(`SELECT * FROM technician_tasks WHERE id = ?`, [id]);
     return res.json({ message: 'Task marked completed', task: updated });
@@ -277,6 +281,8 @@ const requestTaskChange = async (req, res) => {
       INSERT INTO task_messages (id, task_id, org_id, sender_id, sender_name, sender_role, message, is_system, created_at)
       VALUES (?, ?, ?, NULL, 'LaundryZiva Dispatch', 'system', ?, 1, ?);
     `, [replyMsgId, id, task.org_id, `Your ${type} request has been received and is pending review.`, now]);
+
+    releaseMachineControl(task.machine_id).catch((e) => console.warn('release after change request failed:', e.message));
 
     const updated = await get(`SELECT * FROM technician_tasks WHERE id = ?`, [id]);
     return res.json({ message: 'Change request submitted', task: updated });
@@ -457,6 +463,13 @@ const updateTask = async (req, res) => {
     if (rescheduled) {
       const when = [updates.scheduled_date ?? task.scheduled_date, updates.scheduled_time ?? task.scheduled_time].filter(Boolean).join(' ');
       await addDispatchMessage(task, `This task was rescheduled${when ? ` to ${when}` : ''}.`, now);
+    }
+
+    // If support moved a started task away from this technician or machine, their control ends.
+    const leftInProgress = task.status === 'In Progress' && updates.status && updates.status !== 'In Progress';
+    const machineChanged = task.status === 'In Progress' && updates.machine_id !== undefined && updates.machine_id !== task.machine_id;
+    if (leftInProgress || machineChanged) {
+      releaseMachineControl(task.machine_id).catch((e) => console.warn('release after edit failed:', e.message));
     }
 
     const updated = await get(`SELECT * FROM technician_tasks WHERE id = ?`, [id]);

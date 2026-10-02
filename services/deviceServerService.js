@@ -6,6 +6,11 @@ const DEVICE_SERVER_PATH = process.env.DEVICE_SERVER_PATH || '/api/device/states
 const DEVICE_SERVER_API_KEY = process.env.DEVICE_SERVER_API_KEY || '';
 const STALE_AFTER_MS = 90 * 1000;
 
+// Separate secret from the read key: this one can switch relays on real machines. Control is
+// disabled until it is set on both servers.
+const DEVICE_SERVER_CONTROL_API_KEY = process.env.DEVICE_SERVER_CONTROL_API_KEY || '';
+const DEVICE_SERVER_CONTROL_PATH = '/api/internal/machine/control';
+
 if (!DEVICE_SERVER_API_KEY) {
   console.warn('DEVICE_SERVER_API_KEY is not set — live device state sync is disabled.');
 }
@@ -139,7 +144,59 @@ const syncLiveDeviceStates = async () => {
   return synced;
 };
 
+/**
+ * Sends one relay command to a machine through the device server's internal control endpoint.
+ * Resolves { ok, status, error } and never throws.
+ */
+const sendDeviceCommand = (machineId, action) => {
+  if (!DEVICE_SERVER_CONTROL_API_KEY) {
+    return Promise.resolve({ ok: false, status: 503, error: 'Machine control is not configured' });
+  }
+  return new Promise((resolve) => {
+    const body = JSON.stringify({ machine_id: machineId, action });
+    const req = https.request(
+      {
+        hostname: DEVICE_SERVER_HOST,
+        port: 443,
+        path: DEVICE_SERVER_CONTROL_PATH,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+          'X-Internal-Api-Key': DEVICE_SERVER_CONTROL_API_KEY,
+          'User-Agent': 'Laundryziva-AppServer/1.0',
+        },
+        timeout: 5000,
+      },
+      (res) => {
+        let raw = '';
+        res.on('data', (chunk) => (raw += chunk));
+        res.on('end', () => {
+          let parsed = {};
+          try {
+            parsed = JSON.parse(raw);
+          } catch (e) {
+            // non-JSON error page (e.g. nginx 403) — fall through with status only
+          }
+          resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, error: parsed.error });
+        });
+      }
+    );
+    req.on('error', (err) => {
+      console.warn('Device command request error:', err.message);
+      resolve({ ok: false, status: 502, error: 'Could not reach the device server' });
+    });
+    req.on('timeout', () => {
+      req.destroy();
+      resolve({ ok: false, status: 502, error: 'Device server timed out' });
+    });
+    req.write(body);
+    req.end();
+  });
+};
+
 module.exports = {
+  sendDeviceCommand,
   fetchDeviceStatesFromDeviceServer,
   syncLiveDeviceStates,
 };
