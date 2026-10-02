@@ -37,7 +37,8 @@ const getConversations = async (req, res) => {
     const params = isTechnician ? [me, me, me] : [me, me];
 
     const rows = await all(
-      `SELECT t.id AS task_id, t.title, t.machine_id, t.location, t.status, t.technician_id, t.technician_name,
+      `SELECT t.id AS task_id, t.title, t.machine_id,
+              (SELECT friendly_name FROM machines WHERE device_id = t.machine_id) AS machine_label, t.location, t.status, t.technician_id, t.technician_name,
               t.scheduled_date, t.scheduled_time,
               lm.message AS last_message, lm.sender_role AS last_sender_role, lm.created_at AS last_message_at,
               (SELECT COUNT(*) FROM task_messages m

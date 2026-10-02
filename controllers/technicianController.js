@@ -20,7 +20,7 @@ const getTasks = async (req, res) => {
       ? req.user.id
       : (req.query.technician_id || (allFlag === 'true' ? null : req.user?.id));
 
-    let sql = `SELECT * FROM technician_tasks WHERE 1=1`;
+    let sql = `SELECT *, (SELECT friendly_name FROM machines WHERE device_id = technician_tasks.machine_id) AS machine_label FROM technician_tasks WHERE 1=1`;
     const params = [];
 
     if (technicianId) {
@@ -62,7 +62,7 @@ const getTasks = async (req, res) => {
 const getTask = async (req, res) => {
   try {
     const { id } = req.params;
-    const task = await get(`SELECT * FROM technician_tasks WHERE id = ?`, [id]);
+    const task = await get(`SELECT *, (SELECT friendly_name FROM machines WHERE device_id = technician_tasks.machine_id) AS machine_label FROM technician_tasks WHERE id = ?`, [id]);
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
     }
@@ -88,6 +88,9 @@ const createTask = async (req, res) => {
 
     if (!title) {
       return res.status(400).json({ error: 'title is required' });
+    }
+    if (String(title).trim().length > MAX_TITLE_LENGTH) {
+      return res.status(400).json({ error: `title must be at most ${MAX_TITLE_LENGTH} characters` });
     }
     if (priority && !EDIT_PRIORITIES.includes(priority)) {
       return res.status(400).json({ error: 'priority must be Low, Medium or High' });
@@ -327,6 +330,7 @@ const requestTaskChange = async (req, res) => {
 };
 
 const EDIT_PRIORITIES = ['Low', 'Medium', 'High'];
+const MAX_TITLE_LENGTH = 60;
 
 const addDispatchMessage = async (task, text, now) => {
   const msgId = `MSG_${Date.now().toString(36).toUpperCase()}_${Math.floor(Math.random() * 1000)}`;
@@ -356,6 +360,9 @@ const updateTask = async (req, res) => {
     if (has('title')) {
       if (!(body.title || '').toString().trim()) {
         return res.status(400).json({ error: 'title cannot be empty' });
+      }
+      if (body.title.toString().trim().length > MAX_TITLE_LENGTH) {
+        return res.status(400).json({ error: `title must be at most ${MAX_TITLE_LENGTH} characters` });
       }
       updates.title = body.title.toString().trim();
     }
