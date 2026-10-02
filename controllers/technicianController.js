@@ -314,61 +314,6 @@ const requestTaskChange = async (req, res) => {
   }
 };
 
-// GET /api/technician/tasks/:id/messages
-const getTaskMessages = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const messages = await all(`SELECT * FROM task_messages WHERE task_id = ? ORDER BY created_at ASC`, [id]);
-    return res.json({ messages });
-  } catch (err) {
-    console.error('getTaskMessages error:', err);
-    return res.status(500).json({ error: 'Failed to fetch task messages' });
-  }
-};
-
-// POST /api/technician/tasks/:id/messages
-const postTaskMessage = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { message, voice_url, photo_url } = req.body;
-
-    const task = await get(`SELECT * FROM technician_tasks WHERE id = ?`, [id]);
-    if (!task) {
-      return res.status(404).json({ error: 'Task not found' });
-    }
-    if (!message && !voice_url && !photo_url) {
-      return res.status(400).json({ error: 'message, voice_url, or photo_url is required' });
-    }
-
-    const now = new Date().toISOString();
-    const msgId = `MSG_${Date.now().toString(36).toUpperCase()}_${Math.floor(Math.random() * 1000)}`;
-    const senderId = req.user?.id || task.technician_id;
-    const senderName = req.user?.name || task.technician_name || 'Technician';
-
-    await run(`
-      INSERT INTO task_messages (id, task_id, org_id, sender_id, sender_name, sender_role, message, voice_url, photo_url, is_system, created_at)
-      VALUES (?, ?, ?, ?, ?, 'technician', ?, ?, ?, 0, ?);
-    `, [msgId, id, task.org_id, senderId, senderName, message || null, voice_url || null, photo_url || null, now]);
-
-    const created = await get(`SELECT * FROM task_messages WHERE id = ?`, [msgId]);
-
-    // Auto-reply for full parity with the frontend mock's sendMessage, which always
-    // appends a canned acknowledgement alongside every technician-authored message.
-    const replyId = `MSG_${Date.now().toString(36).toUpperCase()}_${Math.floor(Math.random() * 1000) + 1}`;
-    const replyNow = new Date().toISOString();
-    await run(`
-      INSERT INTO task_messages (id, task_id, org_id, sender_id, sender_name, sender_role, message, is_system, created_at)
-      VALUES (?, ?, ?, NULL, 'LaundryZiva Dispatch', 'system', ?, 1, ?);
-    `, [replyId, id, task.org_id, 'An agent will review your message shortly.', replyNow]);
-
-    return res.status(201).json({ message: 'Message sent', task_message: created });
-  } catch (err) {
-    console.error('postTaskMessage error:', err);
-    return res.status(500).json({ error: 'Failed to send message' });
-  }
-};
-
-
 const EDIT_PRIORITIES = ['Low', 'Medium', 'High'];
 
 const addDispatchMessage = async (task, text, now) => {
@@ -510,6 +455,4 @@ module.exports = {
   completeTask,
   updateTaskPhotos,
   requestTaskChange,
-  getTaskMessages,
-  postTaskMessage,
 };

@@ -18,6 +18,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const customerCareRoutes = require('./routes/customerCareRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const technicianRoutes = require('./routes/technicianRoutes');
+const chatRoutes = require('./routes/chatRoutes');
 const internalRoutes = require('./routes/internalRoutes');
 
 const app = express();
@@ -63,6 +64,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/customercare', customerCareRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/technician', technicianRoutes);
+app.use('/api/chat', chatRoutes);
 app.use('/api/internal', internalRoutes);
 
 // Global Error Handler

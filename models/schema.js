@@ -229,6 +229,19 @@ const initSchema = async () => {
     );
   `);
 
+  await run(`CREATE INDEX IF NOT EXISTS idx_task_messages_task_created ON task_messages (task_id, created_at);`);
+
+  // Per-user "last read" marker for each task chat, used for unread counts.
+  await run(`
+    CREATE TABLE IF NOT EXISTS task_chat_reads (
+      user_id TEXT NOT NULL,
+      task_id TEXT NOT NULL,
+      last_read_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, task_id),
+      FOREIGN KEY (task_id) REFERENCES technician_tasks (id) ON DELETE CASCADE
+    );
+  `);
+
   // Revoked Tokens Table (JWT logout / invalidation)
   await run(`
     CREATE TABLE IF NOT EXISTS revoked_tokens (

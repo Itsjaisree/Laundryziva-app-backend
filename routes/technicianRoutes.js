@@ -15,7 +15,5 @@ router.post('/tasks/:id/start', authenticateToken, canWorkOnTasks, technicianCon
 router.post('/tasks/:id/complete', authenticateToken, canWorkOnTasks, technicianController.completeTask);
 router.post('/tasks/:id/photos', authenticateToken, canWorkOnTasks, technicianController.updateTaskPhotos);
 router.post('/tasks/:id/change-request', authenticateToken, canWorkOnTasks, technicianController.requestTaskChange);
-router.get('/tasks/:id/messages', authenticateToken, canWorkOnTasks, technicianController.getTaskMessages);
-router.post('/tasks/:id/messages', authenticateToken, canWorkOnTasks, technicianController.postTaskMessage);
 
 module.exports = router;
