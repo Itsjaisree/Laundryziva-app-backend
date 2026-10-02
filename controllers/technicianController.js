@@ -130,11 +130,31 @@ const createTask = async (req, res) => {
   }
 };
 
+const MAX_PHOTOS_PER_KIND = 10;
+
+// Accepts a list of photo ids (or the older single id) and returns the photo rows that really belong to this
+// technician, this task and this kind - in the order sent. Returns null if any id is invalid.
+const resolveEvidencePhotos = async (taskId, userId, kind, ids, legacyId) => {
+  const list = Array.isArray(ids) ? ids : legacyId ? [legacyId] : [];
+  const unique = [...new Set(list.map(String))];
+  if (unique.length === 0 || unique.length > MAX_PHOTOS_PER_KIND) return null;
+  const rows = [];
+  for (const photoId of unique) {
+    const row = await get(
+      `SELECT id FROM task_photos WHERE id = ? AND task_id = ? AND kind = ? AND uploaded_by = ?`,
+      [photoId, taskId, kind, userId]
+    );
+    if (!row) return null;
+    rows.push(row);
+  }
+  return rows;
+};
+
 // POST /api/technician/tasks/:id/start
 const startTask = async (req, res) => {
   try {
     const { id } = req.params;
-    const { arrival_photo_id } = req.body || {};
+    const { arrival_photo_id, arrival_photo_ids } = req.body || {};
 
     const task = await get(`SELECT id, status, technician_id FROM technician_tasks WHERE id = ?`, [id]);
     if (!task) {
@@ -153,23 +173,18 @@ const startTask = async (req, res) => {
       return res.status(409).json({ error: `A ${task.status} task cannot be started` });
     }
 
-    // The photo must already be uploaded by this technician for this task — never trust a client-supplied URL.
-    const photo = arrival_photo_id
-      ? await get(
-          `SELECT id FROM task_photos WHERE id = ? AND task_id = ? AND kind = 'arrival' AND uploaded_by = ?`,
-          [arrival_photo_id, id, req.user.id]
-        )
-      : null;
-    if (!photo) {
-      return res.status(400).json({ error: 'Upload an arrival photo before starting the task' });
+    // The photos must already be uploaded by this technician for this task - never trust a client-supplied URL.
+    const photos = await resolveEvidencePhotos(id, req.user.id, 'arrival', arrival_photo_ids, arrival_photo_id);
+    if (!photos) {
+      return res.status(400).json({ error: `Upload 1 to ${MAX_PHOTOS_PER_KIND} arrival photos before starting the task` });
     }
-    const photoUrl = `/api/photos/${photo.id}`;
+    const urls = photos.map((p) => `/api/photos/${p.id}`);
 
     await run(`
       UPDATE technician_tasks
       SET status = 'In Progress', arrival_photo_url = ?, before_photos = ?, updated_at = ?
       WHERE id = ?
-    `, [photoUrl, JSON.stringify([photoUrl]), new Date().toISOString(), id]);
+    `, [urls[0], JSON.stringify(urls), new Date().toISOString(), id]);
 
     const updated = await get(`SELECT * FROM technician_tasks WHERE id = ?`, [id]);
     return res.json({ message: 'Task started', task: updated });
@@ -183,7 +198,7 @@ const startTask = async (req, res) => {
 const completeTask = async (req, res) => {
   try {
     const { id } = req.params;
-    const { completion_photo_id } = req.body || {};
+    const { completion_photo_id, completion_photo_ids } = req.body || {};
 
     const task = await get(`SELECT id, machine_id, status, technician_id FROM technician_tasks WHERE id = ?`, [id]);
     if (!task) {
@@ -196,22 +211,17 @@ const completeTask = async (req, res) => {
       return res.status(409).json({ error: 'Start the task with an arrival photo before completing it' });
     }
 
-    const photo = completion_photo_id
-      ? await get(
-          `SELECT id FROM task_photos WHERE id = ? AND task_id = ? AND kind = 'completion' AND uploaded_by = ?`,
-          [completion_photo_id, id, req.user.id]
-        )
-      : null;
-    if (!photo) {
-      return res.status(400).json({ error: 'Upload a completion photo before completing the task' });
+    const photos = await resolveEvidencePhotos(id, req.user.id, 'completion', completion_photo_ids, completion_photo_id);
+    if (!photos) {
+      return res.status(400).json({ error: `Upload 1 to ${MAX_PHOTOS_PER_KIND} completion photos before completing the task` });
     }
-    const photoUrl = `/api/photos/${photo.id}`;
+    const urls = photos.map((p) => `/api/photos/${p.id}`);
 
     await run(`
       UPDATE technician_tasks
       SET status = 'Completed', verification_photo_url = ?, after_photos = ?, updated_at = ?
       WHERE id = ?
-    `, [photoUrl, JSON.stringify([photoUrl]), new Date().toISOString(), id]);
+    `, [urls[0], JSON.stringify(urls), new Date().toISOString(), id]);
 
     // Work is over: the technician's control of this machine ends and any forced relay is released.
     releaseMachineControl(task.machine_id).catch((e) => console.warn('release after complete failed:', e.message));

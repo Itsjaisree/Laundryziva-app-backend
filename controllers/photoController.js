@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { run, get } = require('../config/db');
 
 const UPLOADS_DIR = path.resolve(process.env.UPLOADS_DIR || path.join(__dirname, '..', 'uploads'));
-const MAX_PHOTOS_PER_TASK = 12;
+const MAX_PHOTOS_PER_KIND = 10;
 const KINDS = ['arrival', 'completion'];
 const SAFE_ID = /^[A-Za-z0-9_]+$/;
 
@@ -58,9 +58,9 @@ const uploadTaskPhoto = async (req, res) => {
       return res.status(400).json({ error: 'Invalid task' });
     }
 
-    const existing = await get(`SELECT COUNT(*) AS n FROM task_photos WHERE task_id = ?`, [task.id]);
-    if (Number(existing.n) >= MAX_PHOTOS_PER_TASK) {
-      return res.status(409).json({ error: 'Too many photos have been uploaded for this task' });
+    const existing = await get(`SELECT COUNT(*) AS n FROM task_photos WHERE task_id = ? AND kind = ?`, [task.id, kind]);
+    if (Number(existing.n) >= MAX_PHOTOS_PER_KIND) {
+      return res.status(409).json({ error: `You can upload at most ${MAX_PHOTOS_PER_KIND} ${kind} photos for a task` });
     }
 
     const capturedAt = req.query.captured_at && !Number.isNaN(Date.parse(req.query.captured_at))
