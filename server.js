@@ -31,7 +31,8 @@ const PORT = process.env.PORT || 5000;
 // Trust the nginx reverse proxy for correct client IPs (rate limiting, logging)
 app.set('trust proxy', 1);
 
-app.use(helmet());
+// Same defaults as before, plus blob: images so the web dashboard can show task photos fetched with the login token
+app.use(helmet({ contentSecurityPolicy: { useDefaults: true, directives: { 'img-src': ["'self'", 'data:', 'blob:'] } } }));
 
 // Enable CORS only for known web origins. Native mobile requests (React Native / Expo Go)
 // don't send an Origin header at all and are unaffected by this restriction.
@@ -73,6 +74,17 @@ app.use('/api/push', pushRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/photos', photoRoutes);
 app.use('/api/internal', internalRoutes);
+
+// Web dashboard for customer support (/web/support) and the super admin (/web/super).
+// Built from webapp/ into public-web/ and served as a single-page app.
+const WEB_DIR = path.join(__dirname, 'public-web');
+app.use('/web/assets', express.static(path.join(WEB_DIR, 'assets'), { maxAge: '365d', immutable: true, index: false }));
+app.get(['/web', '/web/*'], (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(WEB_DIR, 'index.html'), (err) => {
+    if (err && !res.headersSent) res.status(404).send('Not found');
+  });
+});
 
 // Global Error Handler
 app.use((err, req, res, next) => {

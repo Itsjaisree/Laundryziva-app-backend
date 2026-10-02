@@ -29,3 +29,6 @@ Thumbs.db
 
 # Uploaded task photos (evidence) — never committed
 uploads/
+
+# Web dashboard source dependencies (the built output in public-web/ IS committed)
+webapp/node_modules/
