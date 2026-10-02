@@ -116,9 +116,21 @@ const startTask = async (req, res) => {
     const { id } = req.params;
     const { arrival_photo_url, before_photos } = req.body;
 
-    const task = await get(`SELECT id FROM technician_tasks WHERE id = ?`, [id]);
+    const task = await get(`SELECT id, status, technician_id FROM technician_tasks WHERE id = ?`, [id]);
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
+    }
+    // Machine control is granted by a started task, so only the assigned technician may start it.
+    if (req.user?.role_key === 'field_operations' && task.technician_id !== req.user.id) {
+      return res.status(403).json({ error: 'This task is not assigned to you' });
+    }
+    if (task.status === 'In Progress') {
+      // Idempotent: a retry after a lost response must not fail.
+      const current = await get(`SELECT * FROM technician_tasks WHERE id = ?`, [id]);
+      return res.json({ message: 'Task already started', task: current });
+    }
+    if (!['Assigned', 'Scheduled'].includes(task.status)) {
+      return res.status(409).json({ error: `A ${task.status} task cannot be started` });
     }
 
     let beforePhotosJson = null;
@@ -155,9 +167,15 @@ const completeTask = async (req, res) => {
     const { id } = req.params;
     const { verification_photo_url, after_photos } = req.body;
 
-    const task = await get(`SELECT id, machine_id FROM technician_tasks WHERE id = ?`, [id]);
+    const task = await get(`SELECT id, machine_id, status, technician_id FROM technician_tasks WHERE id = ?`, [id]);
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
+    }
+    if (req.user?.role_key === 'field_operations' && task.technician_id !== req.user.id) {
+      return res.status(403).json({ error: 'This task is not assigned to you' });
+    }
+    if (task.status !== 'In Progress') {
+      return res.status(409).json({ error: 'Start the task with an arrival photo before completing it' });
     }
 
     let afterPhotosJson = null;
@@ -172,6 +190,10 @@ const completeTask = async (req, res) => {
       afterPhotosJson = after_photos;
     } else if (verification_photo_url) {
       afterPhotosJson = JSON.stringify([verification_photo_url]);
+    }
+
+    if (!primaryVerificationPhoto && !afterPhotosJson) {
+      return res.status(400).json({ error: 'A completion photo is required' });
     }
 
     await run(`
