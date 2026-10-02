@@ -19,6 +19,12 @@ const getUsers = async (req, res) => {
       sql += ` AND role_key = ?`;
       params.push(role_key);
     }
+    // super_admin's org_id is seeded to a real org (NOT NULL constraint), since the role
+    // itself is global-scope rather than tied to any one org — never show it in an org's
+    // own user list.
+    if (requesterRole !== 'super_admin') {
+      sql += ` AND role_key != 'super_admin'`;
+    }
 
     sql += ` ORDER BY created_at DESC`;
 
