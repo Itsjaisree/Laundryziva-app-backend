@@ -1,5 +1,6 @@
 const https = require('https');
 const { run, get } = require('../config/db');
+const { publishMachineStatuses } = require('./liveStatusService');
 
 const DEVICE_SERVER_HOST = process.env.DEVICE_SERVER_HOST || 'data.upiziva.com';
 const DEVICE_SERVER_PATH = process.env.DEVICE_SERVER_PATH || '/api/device/states';
@@ -141,6 +142,9 @@ const syncLiveDeviceStates = async () => {
   } catch (err) {
     console.warn('stale machine sweep error:', err.message);
   }
+
+  // Tell the apps about anything that changed (after the offline sweep, so a machine going offline is pushed too).
+  await publishMachineStatuses();
   return synced;
 };
 

@@ -6,6 +6,7 @@ const path = require('path');
 const { initSchema } = require('./models/schema');
 const { seedDatabase } = require('./services/seedService');
 const { syncLiveDeviceStates } = require('./services/deviceServerService');
+const liveStatus = require('./services/liveStatusService');
 
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
@@ -103,6 +104,7 @@ const startServer = async () => {
   try {
     await initSchema();
     await seedDatabase();
+    liveStatus.start();
     await syncLiveDeviceStates();
     setInterval(syncLiveDeviceStates, 15000);
     startScheduler();

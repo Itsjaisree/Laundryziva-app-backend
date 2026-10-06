@@ -1,5 +1,6 @@
 const { run, get, all } = require('../config/db');
 const { notifyUsers, supportUserIds } = require('../services/pushService');
+const { publishChatMessage } = require('../services/liveStatusService');
 
 const MAX_MESSAGE_LENGTH = 2000;
 const INITIAL_PAGE = 200;
@@ -149,6 +150,9 @@ const postMessage = async (req, res) => {
       orgId: task.org_id,
       icon: 'chatbubble-ellipses-outline',
     });
+
+    // Live nudge so open chats update at once instead of waiting for their next refresh
+    publishChatMessage(task.org_id, task.id, id, now);
 
     return res.status(201).json({ message: created });
   } catch (err) {
