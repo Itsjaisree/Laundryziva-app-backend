@@ -105,7 +105,8 @@ const getDaily = async (req, res) => {
 
     for (const t of txns) {
       if ((t.status || '').toUpperCase() !== 'SUCCESS') continue;
-      const dateStr = t.created_at ? t.created_at.split('T')[0] : 'Today';
+      // The day in India time, the same as the monthly figures and what an owner sees on the clock
+      const dateStr = t.created_at ? new Date(Date.parse(t.created_at) + IST_OFFSET_MS).toISOString().slice(0, 10) : 'Today';
       if (!dailyMap[dateStr]) {
         dailyMap[dateStr] = { day: dateStr, revenue: 0, washes: 0 };
       }
@@ -125,7 +126,17 @@ const getDaily = async (req, res) => {
       monthlyMap[month].washes += 1;
     }
     const monthlyList = Object.values(monthlyMap).sort((a, b) => a.month.localeCompare(b.month));
-    return res.json({ daily: dailyList, monthly: monthlyList });
+
+    // Washes by hour of the day (India time) over the last 30 days: when the machines are busy
+    const hourly = Array.from({ length: 24 }, () => 0);
+    const since = Date.now() - 30 * 86400000;
+    for (const t of txns) {
+      if ((t.status || '').toUpperCase() !== 'SUCCESS' || !t.created_at) continue;
+      const at = Date.parse(t.created_at);
+      if (!(at >= since)) continue;
+      hourly[new Date(at + IST_OFFSET_MS).getUTCHours()] += 1;
+    }
+    return res.json({ daily: dailyList, monthly: monthlyList, hourly });
   } catch (err) {
     console.error('getDaily error:', err);
     return res.status(500).json({ error: 'Failed to fetch daily analytics' });
