@@ -1,6 +1,7 @@
 const { run, get, all } = require('../config/db');
 const { releaseMachineControl } = require('../services/machineControlService');
 const { notifyUsers, supportUserIds, ownerUserIds } = require('../services/pushService');
+const { mergePhotoUrls } = require('../services/taskPhotos');
 
 // Tells the owners of the task's organization. Fire-and-forget: a failed alert never fails the request.
 const alertOwners = (orgId, title, body, taskId) =>
@@ -173,6 +174,44 @@ const resolveEvidencePhotos = async (taskId, userId, kind, ids, legacyId) => {
     rows.push(row);
   }
   return rows;
+};
+
+// POST /api/technician/tasks/:id/arrival-photos  { photo_ids: [...] }
+// Adds more arrival photos to a task that is already in progress (the first set cannot be changed once sent).
+const addArrivalPhotos = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { photo_ids } = req.body || {};
+
+    const task = await get(`SELECT id, status, technician_id, before_photos FROM technician_tasks WHERE id = ?`, [id]);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    if (req.user?.role_key === 'field_operations' && task.technician_id !== req.user.id) {
+      return res.status(403).json({ error: 'This task is not assigned to you' });
+    }
+    if (task.status !== 'In Progress') {
+      return res.status(409).json({ error: 'More arrival photos can only be added while the task is in progress' });
+    }
+
+    // Only photos this technician already uploaded for this task as arrival photos are accepted
+    const photos = await resolveEvidencePhotos(id, req.user.id, 'arrival', photo_ids, null);
+    if (!photos) {
+      return res.status(400).json({ error: `Upload 1 to ${MAX_PHOTOS_PER_KIND} arrival photos first` });
+    }
+    const result = mergePhotoUrls(task.before_photos, photos.map((p) => `/api/photos/${p.id}`), MAX_PHOTOS_PER_KIND);
+    if (result.error) {
+      return res.status(409).json({ error: result.error });
+    }
+
+    await run(`UPDATE technician_tasks SET before_photos = ?, updated_at = ? WHERE id = ?`,
+      [JSON.stringify(result.merged), new Date().toISOString(), id]);
+    const updated = await get(`SELECT * FROM technician_tasks WHERE id = ?`, [id]);
+    return res.json({ message: 'Arrival photos added', task: updated });
+  } catch (err) {
+    console.error('addArrivalPhotos error:', err);
+    return res.status(500).json({ error: 'Failed to add the arrival photos' });
+  }
 };
 
 // POST /api/technician/tasks/:id/start
@@ -491,6 +530,7 @@ module.exports = {
   getTask,
   createTask,
   startTask,
+  addArrivalPhotos,
   completeTask,
   requestTaskChange,
 };

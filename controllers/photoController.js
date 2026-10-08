@@ -39,8 +39,9 @@ const uploadTaskPhoto = async (req, res) => {
     if (!KINDS.includes(kind)) {
       return res.status(400).json({ error: 'kind must be arrival or completion' });
     }
-    if (kind === 'arrival' && !['Assigned', 'Scheduled'].includes(task.status)) {
-      return res.status(409).json({ error: 'An arrival photo can only be uploaded before the task is started' });
+    // More arrival photos can be added after the task has started (for example when the first set was sent too early)
+    if (kind === 'arrival' && !['Assigned', 'Scheduled', 'In Progress'].includes(task.status)) {
+      return res.status(409).json({ error: 'An arrival photo can only be uploaded before the task is finished' });
     }
     if (kind === 'completion' && task.status !== 'In Progress') {
       return res.status(409).json({ error: 'A completion photo can only be uploaded while the task is in progress' });

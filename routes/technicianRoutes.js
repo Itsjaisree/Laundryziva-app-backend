@@ -13,6 +13,7 @@ router.get('/tasks/:id', authenticateToken, canViewTasks, technicianController.g
 router.post('/tasks', authenticateToken, requireRole('organization_owner', 'support_refund_agent'), technicianController.createTask);
 router.put('/tasks/:id', authenticateToken, requireRole('support_refund_agent'), technicianController.updateTask);
 router.post('/tasks/:id/start', authenticateToken, canWorkOnTasks, technicianController.startTask);
+router.post('/tasks/:id/arrival-photos', authenticateToken, canWorkOnTasks, technicianController.addArrivalPhotos);
 router.post('/tasks/:id/complete', authenticateToken, canWorkOnTasks, technicianController.completeTask);
 // Raw image body (no multipart). Only the task's own technician can upload evidence.
 router.post('/tasks/:id/photo', authenticateToken, requireStrictRole('field_operations'), express.raw({ type: ['image/jpeg', 'image/png'], limit: '8mb' }), photoController.uploadTaskPhoto);
