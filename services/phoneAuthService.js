@@ -9,9 +9,11 @@ if (!FIREBASE_PROJECT_ID) {
 let adminAuth = null;
 const getAdminAuth = () => {
   if (!adminAuth) {
-    const admin = require('firebase-admin');
-    const app = admin.apps.length ? admin.app() : admin.initializeApp({ projectId: FIREBASE_PROJECT_ID });
-    adminAuth = app.auth();
+    // firebase-admin 13 has no app.auth(): the modular functions are used
+    const { initializeApp, getApps, getApp } = require('firebase-admin/app');
+    const { getAuth } = require('firebase-admin/auth');
+    const app = getApps().length ? getApp() : initializeApp({ projectId: FIREBASE_PROJECT_ID });
+    adminAuth = getAuth(app);
   }
   return adminAuth;
 };

@@ -98,6 +98,8 @@ const phoneLogin = async (req, res) => {
     try {
       phone = await phoneAuth.verifyPhoneToken(idToken);
     } catch (e) {
+      // The reason stays in the log (never the token); the user gets a plain message
+      console.warn('phoneLogin: token check failed:', e.code || '', String(e.message || e).slice(0, 160));
       return res.status(401).json({ error: 'Phone verification failed. Please try again.' });
     }
 
