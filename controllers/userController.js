@@ -15,7 +15,14 @@ const getUsers = async (req, res) => {
     const params = [];
 
     if (orgId) {
-      sql += ` AND (org_id = ? OR org_id IS NULL)`;
+      if (requesterRole === 'organization_owner') {
+        // An owner sees only their own organization's people. Technicians and customer support are company-wide
+        // (no organization) and are not part of it.
+        sql += ` AND org_id = ?`;
+      } else {
+        // Other callers (support picking a technician for a task) still need the company-wide technicians.
+        sql += ` AND (org_id = ? OR org_id IS NULL)`;
+      }
       params.push(orgId);
     }
     if (role_key) {
