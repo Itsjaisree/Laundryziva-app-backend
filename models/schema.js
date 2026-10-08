@@ -188,6 +188,10 @@ const initSchema = async () => {
     );
   `);
   await run(`ALTER TABLE technician_tasks ADD COLUMN IF NOT EXISTS reminder_sent INTEGER DEFAULT 0;`);
+  // When the work was finished. Tasks completed before this column existed use their last update, which is when they
+  // were completed because completed tasks are not edited afterwards.
+  await run(`ALTER TABLE technician_tasks ADD COLUMN IF NOT EXISTS completed_at TEXT;`);
+  await run(`UPDATE technician_tasks SET completed_at = updated_at WHERE status = 'Completed' AND completed_at IS NULL;`);
   await run(`ALTER TABLE machines ADD COLUMN IF NOT EXISTS offline_alerted INTEGER DEFAULT 0;`);
 
   // Expo push tokens, one row per device

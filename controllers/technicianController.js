@@ -241,6 +241,7 @@ const completeTask = async (req, res) => {
       return res.status(409).json({ error: 'Start the task with an arrival photo before completing it' });
     }
 
+    const completedAt = new Date().toISOString();
     const photos = await resolveEvidencePhotos(id, req.user.id, 'completion', completion_photo_ids, completion_photo_id);
     if (!photos) {
       return res.status(400).json({ error: `Upload 1 to ${MAX_PHOTOS_PER_KIND} completion photos before completing the task` });
@@ -249,9 +250,9 @@ const completeTask = async (req, res) => {
 
     await run(`
       UPDATE technician_tasks
-      SET status = 'Completed', verification_photo_url = ?, after_photos = ?, updated_at = ?
+      SET status = 'Completed', verification_photo_url = ?, after_photos = ?, completed_at = ?, updated_at = ?
       WHERE id = ?
-    `, [urls[0], JSON.stringify(urls), new Date().toISOString(), id]);
+    `, [urls[0], JSON.stringify(urls), completedAt, completedAt, id]);
 
     // Work is over: the technician's control of this machine ends and any forced relay is released.
     releaseMachineControl(task.machine_id).catch((e) => console.warn('release after complete failed:', e.message));
