@@ -191,6 +191,23 @@ const initSchema = async () => {
   // When the work was finished. Tasks completed before this column existed use their last update, which is when they
   // were completed because completed tasks are not edited afterwards.
   await run(`ALTER TABLE technician_tasks ADD COLUMN IF NOT EXISTS completed_at TEXT;`);
+
+  // Money transferred to an organization on a regular interval (not per wash): one row per transfer.
+  await run(`
+    CREATE TABLE IF NOT EXISTS payouts (
+      id TEXT PRIMARY KEY,
+      org_id TEXT NOT NULL,
+      transaction_ref TEXT NOT NULL,
+      amount REAL NOT NULL,
+      period_from TEXT NOT NULL,
+      period_to TEXT NOT NULL,
+      transferred_at TEXT NOT NULL,
+      status TEXT DEFAULT 'Paid',
+      note TEXT,
+      created_by TEXT,
+      created_at TEXT NOT NULL
+    );
+  `);
   await run(`UPDATE technician_tasks SET completed_at = updated_at WHERE status = 'Completed' AND completed_at IS NULL;`);
   await run(`ALTER TABLE machines ADD COLUMN IF NOT EXISTS offline_alerted INTEGER DEFAULT 0;`);
 
