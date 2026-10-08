@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const { get, all, run } = require('../config/db');
 const { generateToken } = require('../config/jwt');
 const { revokeToken } = require('../services/tokenBlacklistService');
+const phoneAuth = require('../services/phoneAuthService');
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
@@ -17,6 +18,26 @@ const getMqttCredentialsForUser = async (user) => {
     }
   }
   return null;
+};
+
+// Everything that happens after a person has proved who they are (password or phone): clear the lock counters,
+// sign the token and build the answer the app expects.
+const completeLogin = async (user) => {
+  await run(`UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login = ? WHERE id = ?`, [new Date().toISOString(), user.id]);
+  const access_token = generateToken(user);
+  const safeUser = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    role: user.role_key,
+    role_id: user.role_id,
+    role_key: user.role_key,
+    role_name: user.role_name,
+    org_id: user.org_id,
+  };
+  const mqtt = await getMqttCredentialsForUser(user);
+  return { access_token, user: safeUser, mqtt };
 };
 
 const login = async (req, res) => {
@@ -53,31 +74,57 @@ const login = async (req, res) => {
       return res.status(403).json({ error: 'User account is deactivated' });
     }
 
-    await run(`UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?`, [user.id]);
-
-    const access_token = generateToken(user);
-
-    const safeUser = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      role: user.role_key,
-      role_id: user.role_id,
-      role_key: user.role_key,
-      role_name: user.role_name,
-      org_id: user.org_id,
-    };
-
-    const mqtt = await getMqttCredentialsForUser(user);
-
-    return res.json({
-      access_token,
-      user: safeUser,
-      mqtt,
-    });
+    return res.json(await completeLogin(user));
   } catch (err) {
     console.error('Login error:', err);
+    return res.status(500).json({ error: 'Internal server error during login' });
+  }
+};
+
+// POST /api/auth/phone-login { id_token }
+// The app has already verified the phone with Firebase (SMS code). We check Firebase's signed token, find the staff
+// account whose phone number matches, and sign it in exactly as a password login would.
+const phoneLogin = async (req, res) => {
+  try {
+    if (!phoneAuth.isEnabled()) {
+      return res.status(503).json({ error: 'Phone sign-in is not configured' });
+    }
+    const idToken = (req.body?.id_token || '').toString();
+    if (!idToken) {
+      return res.status(400).json({ error: 'id_token is required' });
+    }
+
+    let phone;
+    try {
+      phone = await phoneAuth.verifyPhoneToken(idToken);
+    } catch (e) {
+      return res.status(401).json({ error: 'Phone verification failed. Please try again.' });
+    }
+
+    const tail = phoneAuth.lastTenDigits(phone);
+    if (tail.length < 10) {
+      return res.status(401).json({ error: 'Phone verification failed. Please try again.' });
+    }
+    const matches = await all(
+      `SELECT * FROM users WHERE RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) = ?`,
+      [tail]
+    );
+    if (matches.length === 0) {
+      return res.status(401).json({ error: 'No account uses this phone number. Ask your administrator to add it to your profile.' });
+    }
+    if (matches.length > 1) {
+      return res.status(409).json({ error: 'This phone number belongs to more than one account. Ask your administrator to fix it.' });
+    }
+    const user = matches[0];
+    if (user.is_active !== 1) {
+      return res.status(403).json({ error: 'User account is deactivated' });
+    }
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      return res.status(423).json({ error: 'Account temporarily locked due to repeated failed login attempts. Try again later.' });
+    }
+    return res.json(await completeLogin(user));
+  } catch (err) {
+    console.error('phoneLogin error:', err);
     return res.status(500).json({ error: 'Internal server error during login' });
   }
 };
@@ -147,7 +194,9 @@ const getMyPermissions = async (req, res) => {
 };
 
 module.exports = {
+  completeLogin,
   login,
+  phoneLogin,
   logout,
   getMe,
   getMyPermissions,
