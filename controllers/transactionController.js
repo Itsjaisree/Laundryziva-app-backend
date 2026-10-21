@@ -89,14 +89,14 @@ const refundTransaction = async (req, res) => {
 
     await createNotification({
       org_id: txn.org_id || 'ORG_1637D16F',
-      title: 'Refund Processed',
-      message: `Refund of ₹${txn.amount} successfully processed for transaction ${id} (${txn.machine_name}).`,
+      title: 'Marked as Refunded',
+      message: `Transaction ${id} (${txn.machine_name}, ₹${txn.amount}) was marked as refunded. This only updates the record: return the money to the customer through the payment gateway.`,
       type: 'transaction',
       category: 'info',
       icon: 'cash-outline'
     });
 
-    return res.json({ success: true, message: `Transaction ${id} refunded successfully` });
+    return res.json({ success: true, message: `Transaction ${id} marked as refunded. Return the money through the payment gateway.` });
   } catch (err) {
     console.error('refundTransaction error:', err);
     return res.status(500).json({ error: 'Failed to refund transaction' });
