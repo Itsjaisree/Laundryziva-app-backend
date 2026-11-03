@@ -1,5 +1,10 @@
 const bcrypt = require('bcryptjs');
 const { run, get, all } = require('../config/db');
+const {
+  removeViewerMachineAssignments,
+  setViewerMachineAssignments,
+  getViewerAssignedMachines,
+} = require('../services/viewerMachineService');
 
 const COMPANY_WIDE_ROLE_KEYS = ['field_operations', 'support_refund_agent'];
 
@@ -14,13 +19,13 @@ const getUsers = async (req, res) => {
     let sql = `SELECT id, name, email, phone, role_id, role_key, role_name, org_id, is_active, created_at, last_login FROM users WHERE 1=1`;
     const params = [];
 
+    const exactOrg = req.query.exact_org === 'true';
     if (orgId) {
-      if (requesterRole === 'organization_owner') {
-        // An owner sees only their own organization's people. Technicians and customer support are company-wide
-        // (no organization) and are not part of it.
+      if (requesterRole === 'organization_owner' || exactOrg) {
+        // An owner or exact_org query sees only users assigned to this organization.
         sql += ` AND org_id = ?`;
       } else {
-        // Other callers (support picking a technician for a task) still need the company-wide technicians.
+        // Other callers still need the company-wide technicians.
         sql += ` AND (org_id = ? OR org_id IS NULL)`;
       }
       params.push(orgId);
@@ -38,6 +43,22 @@ const getUsers = async (req, res) => {
     sql += ` ORDER BY created_at DESC`;
 
     const users = await all(sql, params);
+
+    // Attach assigned machine IDs for viewer users
+    try {
+      const viewerRows = await all(`SELECT user_id, device_id FROM viewer_machine_assignments`);
+      const map = {};
+      for (const row of viewerRows) {
+        if (!map[row.user_id]) map[row.user_id] = [];
+        map[row.user_id].push(row.device_id);
+      }
+      for (const u of users) {
+        u.assigned_machine_ids = map[u.id] || [];
+      }
+    } catch (e) {
+      // ignore if table not yet initialized
+    }
+
     return res.json({ users });
   } catch (err) {
     console.error('getUsers error:', err);
@@ -97,6 +118,14 @@ const createUser = async (req, res) => {
 
     const createdUser = await get(`SELECT id, name, email, phone, role_id, role_key, role_name, org_id, is_active, created_at FROM users WHERE id = ?`, [userId]);
 
+    if (Array.isArray(req.body.machine_ids) && req.body.machine_ids.length > 0 && userOrgId) {
+      try {
+        await setViewerMachineAssignments(userId, userOrgId, req.body.machine_ids);
+      } catch (err) {
+        console.warn('Failed to assign initial viewer machines:', err);
+      }
+    }
+
     return res.status(201).json({
       message: 'User created successfully',
       user_id: userId,
@@ -111,9 +140,9 @@ const createUser = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, password, phone, is_active } = req.body;
+    const { name, password, phone, is_active, org_id, role_id, machine_ids } = req.body;
 
-    const user = await get(`SELECT id FROM users WHERE id = ?`, [id]);
+    const user = await get(`SELECT id, org_id, role_key FROM users WHERE id = ?`, [id]);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -132,10 +161,78 @@ const updateUser = async (req, res) => {
       await run(`UPDATE users SET password_hash = ? WHERE id = ?`, [passHash, id]);
     }
 
+    let currentOrgId = user.org_id;
+    if (org_id !== undefined) {
+      if (org_id === null || org_id === '' || org_id === 'null') {
+        await run(`UPDATE users SET org_id = NULL WHERE id = ?`, [id]);
+        await removeViewerMachineAssignments(id);
+        currentOrgId = null;
+      } else {
+        const org = await get(`SELECT id FROM organizations WHERE id = ?`, [org_id]);
+        if (!org) {
+          return res.status(400).json({ error: 'Unknown organization' });
+        }
+        await run(`UPDATE users SET org_id = ? WHERE id = ?`, [org.id, id]);
+        currentOrgId = org.id;
+      }
+    }
+
+    if (role_id !== undefined) {
+      if (role_id) {
+        const role = await get(`SELECT id, role_key, name FROM roles WHERE id = ?`, [role_id]);
+        if (!role) {
+          return res.status(400).json({ error: 'Unknown role' });
+        }
+        if (role.role_key === 'super_admin') {
+          return res.status(403).json({ error: 'Cannot assign super admin role' });
+        }
+        await run(`UPDATE users SET role_id = ?, role_key = ?, role_name = ? WHERE id = ?`, [role.id, role.role_key, role.name, id]);
+      }
+    }
+
+    if (machine_ids !== undefined) {
+      if (currentOrgId) {
+        await setViewerMachineAssignments(id, currentOrgId, machine_ids || []);
+      } else {
+        await removeViewerMachineAssignments(id);
+      }
+    }
+
     return res.json({ message: 'User updated successfully' });
   } catch (err) {
     console.error('updateUser error:', err);
-    return res.status(500).json({ error: 'Failed to update user' });
+    return res.status(500).json({ error: err.message || 'Failed to update user' });
+  }
+};
+
+const getUserMachines = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const machines = await getViewerAssignedMachines(id);
+    const deviceIds = machines.map((m) => m.device_id);
+    return res.json({ machines, device_ids: deviceIds });
+  } catch (err) {
+    console.error('getUserMachines error:', err);
+    return res.status(500).json({ error: 'Failed to fetch user machines' });
+  }
+};
+
+const setUserMachines = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { machine_ids } = req.body;
+    const user = await get('SELECT id, org_id FROM users WHERE id = ?', [id]);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (!user.org_id) {
+      return res.status(400).json({ error: 'User does not belong to an organization' });
+    }
+    const assigned = await setViewerMachineAssignments(id, user.org_id, machine_ids || []);
+    return res.json({ message: 'Machine assignments updated successfully', machine_ids: assigned });
+  } catch (err) {
+    console.error('setUserMachines error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to update machine assignments' });
   }
 };
 
@@ -148,6 +245,7 @@ const deleteUser = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    await removeViewerMachineAssignments(id);
     await run(`DELETE FROM users WHERE id = ?`, [id]);
     return res.json({ message: 'User deleted successfully' });
   } catch (err) {
@@ -161,4 +259,6 @@ module.exports = {
   createUser,
   updateUser,
   deleteUser,
+  getUserMachines,
+  setUserMachines,
 };

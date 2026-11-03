@@ -41,7 +41,7 @@ if (!require.cache[dbPath]) {
   };
 }
 
-const { isViewerRole, setViewerMachineAssignments, getViewerAssignedDeviceIds } = require('./services/viewerMachineService');
+const { isViewerRole, setViewerMachineAssignments, getViewerAssignedDeviceIds, removeViewerMachineAssignments } = require('./services/viewerMachineService');
 
 test('TC_RBAC_VIEWER: isViewerRole recognizes viewer role keys correctly', () => {
   assert.strictEqual(isViewerRole('organization_viewer'), true);
@@ -67,4 +67,13 @@ test('TC_VMAC_RESTRICT: refuses machines not belonging to the organization', asy
     },
     /Machines not found in this organization/
   );
+});
+
+test('TC_VMAC_REMOVE: removes viewer machine assignments when user is unlinked from org', async () => {
+  await setViewerMachineAssignments('USR_VIEWER_DEL', 'ORG_01', ['MAC_01']);
+  let ids = await getViewerAssignedDeviceIds('USR_VIEWER_DEL');
+  assert.strictEqual(ids.length, 1);
+  await removeViewerMachineAssignments('USR_VIEWER_DEL');
+  ids = await getViewerAssignedDeviceIds('USR_VIEWER_DEL');
+  assert.strictEqual(ids.length, 0);
 });

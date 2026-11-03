@@ -5,8 +5,8 @@
 - **Workflow**: `AllZiva Backend Automated Tests` (`.github/workflows/backend-tests.yml`)
 - **Latest Verified Run**: [Run #41625743438](https://github.com/Itsjaisree/Laundryziva-app-backend/actions/runs/41625743438)
 - **Test Framework**: Node.js Native Test Runner (`node:test`, `node:assert`) / Node 20.x
-- **Total Tests**: 34
-- **Passed**: 34 (100%)
+- **Total Tests**: 35
+- **Passed**: 35 (100%)
 - **Failed**: 0 (0%)
 - **Status**: ✅ **ALL TESTS PASSING**
 
@@ -86,6 +86,7 @@ This document provides a comprehensive report of all 34 automated unit and integ
 | **TC_RBAC_VIEWER** | `isViewerRole` recognizes viewer role keys correctly | ✅ PASS | 1.1ms | Validates `organization_viewer` and `viewer` keys |
 | **TC_VMAC_ASSIGN** | Assigns valid organization machines to viewer | ✅ PASS | 1.4ms | Machine assignment table updated correctly |
 | **TC_VMAC_RESTRICT** | Refuses machines not belonging to the organization | ✅ PASS | 0.5ms | Multi-tenant isolation: throws error on cross-org ID |
+| **TC_VMAC_REMOVE** | Cleans up machine assignments when viewer is unlinked | ✅ PASS | 1.0ms | Removes all assignments from `viewer_machine_assignments` |
 
 ---
 

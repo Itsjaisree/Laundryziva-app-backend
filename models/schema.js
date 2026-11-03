@@ -81,6 +81,17 @@ const initSchema = async () => {
     );
   `);
 
+  // Viewer Machine Assignments Table
+  await run(`
+    CREATE TABLE IF NOT EXISTS viewer_machine_assignments (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      device_id TEXT NOT NULL,
+      org_id TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+  `);
+
   // Machines Table
   await run(`
     CREATE TABLE IF NOT EXISTS machines (
