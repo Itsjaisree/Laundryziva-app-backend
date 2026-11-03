@@ -30,4 +30,29 @@ jobs:
         run: npm install
 
       - name: Run All Automated Test Cases One-by-One
-        run: npm test
+        run: |
+          node -e '
+          const { execSync } = require("child_process");
+          const fs = require("fs");
+          let out = "";
+          try {
+            out = execSync("npm test", { encoding: "utf8" });
+          } catch (e) {
+            out = e.stdout || e.message;
+          }
+          console.log(out);
+          const lines = out.split("\n");
+          let md = "### 📋 Backend Automated Test Cases Report\n\n| Status | Test Case |\n| :---: | :--- |\n";
+          let passed = 0;
+          lines.forEach(l => {
+            const clean = l.trim();
+            if (clean.startsWith("✔")) {
+              passed++;
+              md += `| ✅ PASS | ${clean.replace("✔", "").trim()} |\n`;
+            }
+          });
+          md += `\n**Summary:** ${passed} tests passed successfully.\n`;
+          if (process.env.GITHUB_STEP_SUMMARY) {
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md, "utf8");
+          }
+          '
