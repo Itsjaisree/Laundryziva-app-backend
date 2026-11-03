@@ -1,6 +1,19 @@
-// Run with: node --test test_live_status.js
 const test = require('node:test');
 const assert = require('node:assert');
+const path = require('path');
+
+const dbPath = path.resolve(__dirname, 'config/db.js');
+if (!require.cache[dbPath]) {
+  require.cache[dbPath] = {
+    id: dbPath, filename: dbPath, loaded: true,
+    exports: {
+      pool: { query: async () => ({ rows: [], rowCount: 0 }), on: () => {} },
+      run: async () => ({ changes: 1, rows: [] }),
+      get: async () => undefined,
+      all: async () => [],
+    },
+  };
+}
 const { createPublisher, buildMessage, topicFor, chatTopic, chatEvent, publishChatMessage } = require('./services/liveStatusService');
 
 const row = (over = {}) => ({

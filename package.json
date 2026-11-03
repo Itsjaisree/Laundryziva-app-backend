@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node test_backend.js"
+    "test": "node --test --test-reporter=spec test_phone_login.js test_payouts.js test_task_photos.js test_live_status.js test_viewer_machines.js",
+    "test:integration": "node test_backend.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
