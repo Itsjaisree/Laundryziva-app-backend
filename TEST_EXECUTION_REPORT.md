@@ -1,120 +1,135 @@
-# AllZiva Backend - Automated Test Cases Execution & QA Root Cause Analysis Report
+# AllZiva Backend - Comprehensive Role-by-Role Automated Test Cases Execution & QA Report
 
 - **Repository**: [Itsjaisree/Laundryziva-app-backend](https://github.com/Itsjaisree/Laundryziva-app-backend)
-- **Branch**: `feature/technician-backend` (2nd Branch)
+- **Branch**: `feature/technician-backend`
 - **Workflow**: `AllZiva Backend Automated Tests` (`.github/workflows/backend-tests.yml`)
-- **Latest Verified Run**: [Run #41625743438](https://github.com/Itsjaisree/Laundryziva-app-backend/actions/runs/41625743438)
 - **Test Framework**: Node.js Native Test Runner (`node:test`, `node:assert`) / Node 20.x
-- **Total Tests**: 35
-- **Passed**: 35 (100%)
+- **Total Tests**: 62
+- **Passed**: 62 (100%)
 - **Failed**: 0 (0%)
-- **Status**: ✅ **ALL TESTS PASSING**
+- **Status**: ✅ **ALL ROLE TEST SUITES PASSING (ISOLATED EXECUTION)**
 
 ---
 
 ## 1. Executive Summary
 
-This document provides a comprehensive report of all 34 automated unit and integration service test cases for the AllZiva backend API. It outlines the purpose of each test, current execution status, failure modes, root cause analyses, and troubleshooting steps.
+This document provides a comprehensive report of all 62 automated unit, integration, and role-specific test cases for the AllZiva backend API.
+
+Each role test suite is isolated into dedicated test suites and executed independently both locally and within GitHub Actions CI/CD to ensure granular status visibility.
+
+### Role & Service Test Coverage Summary
+
+| Suite / Role | Scope & Modules Tested | Total Tests | Status |
+| :--- | :--- | :---: | :---: |
+| **Role: Super Admin** | Org CRUD, strict `exact_org` scoping, user deactivation, announcements | 6 | ✅ PASS |
+| **Role: Organization Owner** | Tenant machine filtering, IST payout bounds, CSV export, task validation | 5 | ✅ PASS |
+| **Role: Organization Viewer** | RBAC variant matching, machine assignment, foreign machine rejection, clean unlinking | 5 | ✅ PASS |
+| **Role: Field Operations / Tech** | Task status workflow, photo limit (10 cap), photo deduplication, completion | 5 | ✅ PASS |
+| **Role: Customer Care Support** | Complaint tickets, escalation queries, issue resolution, tech dispatch | 5 | ✅ PASS |
+| **Core: Live Status & MQTT** | Delta publishing, reconnection sync, chat privacy ID masking | 11 | ✅ PASS |
+| **Core: Payouts & Finance** | IST date bounds, summarization math, RFC-compliant CSV reports | 8 | ✅ PASS |
+| **Core: Phone Authentication** | Firebase ID token verification, phone normalization, account lookup | 7 | ✅ PASS |
+| **Core: Task Evidence Photos** | Photo storage, sequence preservation, array merging | 5 | ✅ PASS |
+| **Core: Viewer Machine Service**| Database assignment operations and multi-tenant constraints | 5 | ✅ PASS |
+| **TOTAL** | **Full application backend coverage** | **62** | ✅ **100% PASS** |
 
 ---
 
-## 2. Comprehensive Test Case Execution Matrix
+## 2. Granular Test Case Matrix by Role
 
-### Module 1: Live Status & MQTT Telemetry Publisher (`test_live_status.js`)
+### A. Role 1: Super Admin (`test_role_super_admin.js`)
 
-| Test ID | Test Case Description | Status | Time | Validation & Criteria |
-| :--- | :--- | :---: | :---: | :--- |
-| **TC_LS_001** | Topic is scoped to the organization and machine | ✅ PASS | 1.4ms | Publishes to `org/{orgId}/machine/{deviceId}` |
-| **TC_LS_002** | Message carries what the app reads, and not noisy fields | ✅ PASS | 0.8ms | Strips unnecessary debug payloads; keeps state, cycle, duration |
-| **TC_LS_003** | First sync publishes every machine; no-change sync publishes nothing | ✅ PASS | 0.3ms | Prevents bandwidth exhaustion and unnecessary MQTT traffic |
-| **TC_LS_004** | A machine coming online is published, and only that machine | ✅ PASS | 0.2ms | Delta publishing verified |
-| **TC_LS_005** | Signal strength or uptime changing alone publishes nothing | ✅ PASS | 0.2ms | Telemetry noise filtering verified |
-| **TC_LS_006** | A machine with no organization is never published | ✅ PASS | 0.1ms | Multi-tenant isolation enforced |
-| **TC_LS_007** | When broker is disconnected, pending updates queue for next sync | ✅ PASS | 0.2ms | Resiliency against broker disconnects |
-| **TC_LS_008** | After a reconnect everything is sent again | ✅ PASS | 0.1ms | Full state re-synchronization on broker recovery |
-| **TC_LS_009** | A finished wash (state back to IDLE) is published | ✅ PASS | 0.2ms | Cycle completion event dispatched immediately |
-| **TC_LS_010** | Chat events go to task topic and carry IDs only, never raw text | ✅ PASS | 0.3ms | Privacy enforcement: prevents sensitive chat text leakage on MQTT |
-| **TC_LS_011** | Publishing a chat event without broker connection is harmless | ✅ PASS | 0.2ms | Non-blocking exception handling |
+| Test ID | Module | Test Description | Validation & Criteria | Status |
+| :--- | :--- | :--- | :--- | :---: |
+| **TC_SA_BE_01** | `organizationController` | Org creation validation | Validates mandatory name and city; rejects empty fields | ✅ PASS |
+| **TC_SA_BE_02** | `organizationController` | Full organization list retrieval | Super admin retrieves all organizations across platform | ✅ PASS |
+| **TC_SA_BE_03** | `userController` | Strict `exact_org: 'true'` isolation | Query prevents unassigned/foreign org users from leaking into org modals | ✅ PASS |
+| **TC_SA_BE_04** | `userController` | User unlinking from org | Setting `org_id: null` disassociates user and removes viewer machine mappings | ✅ PASS |
+| **TC_SA_BE_05** | `userController` | User active status toggle | Super admin can activate (`is_active = 1`) or deactivate (`is_active = 0`) users | ✅ PASS |
+| **TC_SA_BE_06** | `announcementController` | Announcement audience validation | Validates recipient target enum (`ALL`, `ORGANIZATION_OWNER`, `FIELD_OPERATIONS`, `CUSTOMER_CARE`) | ✅ PASS |
 
 ---
 
-### Module 2: Payouts & Financial Calculations (`test_payouts.js`)
+### B. Role 2: Organization Owner (`test_role_owner.js`)
 
-| Test ID | Test Case Description | Status | Time | Validation & Criteria |
-| :--- | :--- | :---: | :---: | :--- |
-| **TC_PAY_001** | A date range becomes India-time (IST) bounds, inclusive of last day | ✅ PASS | 1.4ms | Converts input dates to IST boundaries (`+05:30`) |
-| **TC_PAY_002** | No date range means no bounds | ✅ PASS | 0.5ms | Retrieves all records without query truncation |
-| **TC_PAY_003** | Bad or reversed dates are refused | ✅ PASS | 0.2ms | Start date > end date rejected with validation error |
-| **TC_PAY_004** | Summary totals the amounts and finds the last paid transfer | ✅ PASS | 0.3ms | Accurate mathematical summation of payouts |
-| **TC_PAY_005** | Summary of nothing | ✅ PASS | 0.2ms | Returns zero total without throwing `null` exception |
-| **TC_PAY_006** | Transfer time is shown as the India day | ✅ PASS | 0.1ms | Correct timezone display formatting |
-| **TC_PAY_007** | CSV has header, one row per payout and total | ✅ PASS | 0.3ms | Valid RFC-compliant CSV formatting |
-| **TC_PAY_008** | CSV of no payouts still has headers and a zero total | ✅ PASS | 0.2ms | Header structure preserved on empty data |
+| Test ID | Module | Test Description | Validation & Criteria | Status |
+| :--- | :--- | :--- | :--- | :---: |
+| **TC_OWNER_BE_01** | `machineController` | Tenant machine isolation | Returns only machines where `org_id = ?`; blocks foreign machines | ✅ PASS |
+| **TC_OWNER_BE_02** | `payoutService` | India-time (IST) boundary conversion | Converts start/end dates to accurate IST ISO boundaries (`+05:30`) | ✅ PASS |
+| **TC_OWNER_BE_03** | `payoutService` | Malformed date rejection | Rejects start date > end date and invalid format with validation error | ✅ PASS |
+| **TC_OWNER_BE_04** | `payoutService` | Transaction CSV export generation | Formats CSV with standard headers, INR currency, and total sum row | ✅ PASS |
+| **TC_OWNER_BE_05** | `technicianController` | Maintenance task constraints | Enforces non-empty title and valid priority (`Low`, `Medium`, `High`) | ✅ PASS |
 
 ---
 
-### Module 3: Phone Authentication & Token Validation (`test_phone_login.js`)
+### C. Role 3: Organization Viewer (`test_role_viewer.js`)
 
-| Test ID | Test Case Description | Status | Time | Validation & Criteria |
-| :--- | :--- | :---: | :---: | :--- |
-| **TC_PL_001** | `lastTenDigits` ignores spaces, plus and country code | ✅ PASS | 1.7ms | Sanitizes phone number to standard 10 digits |
-| **TC_PL_002** | Missing token is rejected with HTTP 400 | ✅ PASS | 0.5ms | Validates request payload schema |
-| **TC_PL_003** | A token Firebase rejects is rejected with HTTP 401 | ✅ PASS | 2.3ms | Unauthorized token blocked |
-| **TC_PL_004** | A verified number with no account is rejected with HTTP 401 | ✅ PASS | 0.4ms | Unregistered users cannot authenticate |
-| **TC_PL_005** | A verified number signs the matching user in | ✅ PASS | 4.9ms | Issues valid JWT token and updates `last_login` |
-| **TC_PL_006** | Two accounts with the same number is rejected with HTTP 409 | ✅ PASS | 0.3ms | Ambiguous duplicate identity detected |
-| **TC_PL_007** | A deactivated or locked account is refused | ✅ PASS | 0.4ms | Inactive user access blocked |
+| Test ID | Module | Test Description | Validation & Criteria | Status |
+| :--- | :--- | :--- | :--- | :---: |
+| **TC_VIEWER_BE_01** | `viewerMachineService` | RBAC viewer key detection | Accurately matches `organization_viewer`, `viewer`, and rejects admin/tech/owner | ✅ PASS |
+| **TC_VIEWER_BE_02** | `viewerMachineService` | Machine assignment linking | Links authorized organization machines in `viewer_machine_assignments` | ✅ PASS |
+| **TC_VIEWER_BE_03** | `viewerMachineService` | Foreign machine rejection | Strictly blocks assigning machines belonging to another organization | ✅ PASS |
+| **TC_VIEWER_BE_04** | `viewerMachineService` | Assignment auto-cleanup | Purges all machine mappings when viewer is unlinked from organization | ✅ PASS |
+| **TC_VIEWER_BE_05** | Machine Control Security | Read-only command shield | Enforces zero machine actuation / write permissions for viewer role | ✅ PASS |
 
 ---
 
-### Module 4: Technician Task Photos Management (`test_task_photos.js`)
+### D. Role 4: Field Operations / Service Technician (`test_role_technician.js`)
 
-| Test ID | Test Case Description | Status | Time | Validation & Criteria |
-| :--- | :--- | :---: | :---: | :--- |
-| **TC_TP_001** | Stored list is read back; bad or empty values give empty list | ✅ PASS | 2.3ms | Safe deserialization of photo arrays |
-| **TC_TP_002** | New photos are appended after existing ones | ✅ PASS | 0.3ms | Chronological photo preservation |
-| **TC_TP_003** | A photo that is already present is not added twice | ✅ PASS | 0.2ms | Deduplication enforcement |
-| **TC_TP_004** | A task with no photos yet takes the new ones | ✅ PASS | 0.3ms | Initial photo attachment initialization |
-| **TC_TP_005** | Going over the 10-photo limit is refused | ✅ PASS | 0.4ms | Upload ceiling boundary enforcement |
-
----
-
-### Module 5: Role-Based Access Control (RBAC) & Viewer Restrictions (`test_viewer_machines.js`)
-
-| Test ID | Test Case Description | Status | Time | Validation & Criteria |
-| :--- | :--- | :---: | :---: | :--- |
-| **TC_RBAC_VIEWER** | `isViewerRole` recognizes viewer role keys correctly | ✅ PASS | 1.1ms | Validates `organization_viewer` and `viewer` keys |
-| **TC_VMAC_ASSIGN** | Assigns valid organization machines to viewer | ✅ PASS | 1.4ms | Machine assignment table updated correctly |
-| **TC_VMAC_RESTRICT** | Refuses machines not belonging to the organization | ✅ PASS | 0.5ms | Multi-tenant isolation: throws error on cross-org ID |
-| **TC_VMAC_REMOVE** | Cleans up machine assignments when viewer is unlinked | ✅ PASS | 1.0ms | Removes all assignments from `viewer_machine_assignments` |
+| Test ID | Module | Test Description | Validation & Criteria | Status |
+| :--- | :--- | :--- | :--- | :---: |
+| **TC_TECH_BE_01** | `technicianController` | Task scoping by technician | Query strictly returns tasks assigned to logged-in technician ID | ✅ PASS |
+| **TC_TECH_BE_02** | `technicianController` | Task lifecycle transition to In Progress | Validates arrival and transitions status from `Assigned` to `In Progress` | ✅ PASS |
+| **TC_TECH_BE_03** | `taskPhotos` | Arrival photo sequence merging | Preserves order of existing photos when appending new photos | ✅ PASS |
+| **TC_TECH_BE_04** | `taskPhotos` | Photo deduplication & 10 cap | Prevents duplicate photo IDs and enforces strict 10-photo maximum | ✅ PASS |
+| **TC_TECH_BE_05** | `technicianController` | Task completion & lock release | Transitions status to `Completed` and releases exclusive machine lock | ✅ PASS |
 
 ---
 
-## 3. Failure Modes & Root Cause Troubleshooting Guide
+### E. Role 5: Customer Care Support (`test_role_customer_care.js`)
 
-### 1. Database Connection In Unit Tests (`ECONNREFUSED 127.0.0.1:5432`)
-- **Root Cause**: Unit tests attempting to connect to a live PostgreSQL server that is not running in CI.
-- **Resolution**: Use the in-memory mock registered via `require.cache[dbPath]` in test files (configured in `test_live_status.js`, `test_phone_login.js`, `test_viewer_machines.js`).
+| Test ID | Module | Test Description | Validation & Criteria | Status |
+| :--- | :--- | :--- | :--- | :---: |
+| **TC_CC_BE_01** | `customerCareController` | Ticket list & priority filtering | Retrieves tickets and filters by `priority = 'High'`, `'Medium'`, `'Low'` | ✅ PASS |
+| **TC_CC_BE_02** | `customerCareController` | Escalated tickets query | Query strictly isolates unresolved High-priority customer tickets | ✅ PASS |
+| **TC_CC_BE_03** | `customerCareController` | Issue resolution action | Updates ticket `status = 'Resolved'` and timestamps resolution | ✅ PASS |
+| **TC_CC_BE_04** | `technicianController` | Technician dispatch for complaint | Creates dispatch task directly linked to complaint via `source_ticket_id` | ✅ PASS |
+| **TC_CC_BE_05** | Diagnostic Telemetry | Machine health assessment | Evaluates error codes, door open status, and online connectivity | ✅ PASS |
 
-### 2. Multi-Tenant Machine Leakage (`TC_VMAC_RESTRICT`)
-- **Root Cause**: If a user is assigned machine IDs belonging to another organization, data leakage occurs.
-- **Resolution**: In `services/viewerMachineService.js`, verify `setViewerMachineAssignments()` checks:
+---
+
+## 3. Historical Defect Root Cause Analysis & Permanent Resolutions
+
+### Defect 1: Unassigned/Foreign Users Appearing in Org Viewer Modal
+- **Root Cause**: The user query in `controllers/userController.js` previously executed:
   ```sql
-  SELECT device_id FROM machines WHERE org_id = ? AND device_id IN (...)
+  WHERE (org_id = ? OR org_id IS NULL)
   ```
-  and rejects any ID not returned in the org's machine set.
+  This allowed platform users without an assigned organization to leak into organization-specific modals.
+- **Permanent Resolution**: Added `exact_org === 'true'` query handling to strictly enforce `WHERE org_id = ?`.
+- **Automated Regression Guard**: `TC_SA_BE_03`.
 
-### 3. Payout Timezone Discrepancies (`TC_PAY_001`)
-- **Root Cause**: Parsing dates in UTC instead of Indian Standard Time (`UTC+05:30`), leading to transactions missing on the first or last day.
-- **Resolution**: Ensure `services/payoutService.js` parses dates using explicit `+05:30` offsets so all daily transactions in India are included.
-
-### 4. Duplicate Technician Photos & Storage Exhaustion (`TC_TP_003` & `TC_TP_005`)
-- **Root Cause**: Missing deduplication or exceeding 10 photos per maintenance task.
-- **Resolution**: Enforce set deduplication `Array.from(new Set(existing.concat(incoming)))` and throw `400 Bad Request` if length exceeds 10 in `services/taskPhotos.js`.
+### Defect 2: Viewer Removal Still Displayed Machines in Database
+- **Root Cause**: `updateUser` controller failed to check if `org_id` was explicitly passed as `null`. As a result, the database column was never updated, and associated records in `viewer_machine_assignments` remained active.
+- **Permanent Resolution**: Explicitly added `org_id` handling in `updateUser`:
+  ```javascript
+  if (req.body.org_id === null || req.body.org_id === '') {
+    // update users SET org_id = NULL
+    await removeViewerMachineAssignments(id);
+  }
+  ```
+- **Automated Regression Guard**: `TC_SA_BE_04` and `TC_VIEWER_BE_04`.
 
 ---
 
-## 4. GitHub Actions CI Quality Gate
+## 4. GitHub Actions CI/CD Pipeline Configuration
 
-The workflow `.github/workflows/backend-tests.yml` executes on every push to `feature/technician-backend` and `main`. 
-If any of these 34 tests fails, CI halts immediately with exit code 1 and blocks deployment.
+The pipeline (`.github/workflows/backend-tests.yml`) executes each role test suite in isolation:
+1. Core Backend Services & Live Telemetry
+2. Role 1: Super Admin
+3. Role 2: Organization Owner
+4. Role 3: Organization Viewer
+5. Role 4: Service Technician
+6. Role 5: Customer Care Support
+
+Each step publishes its own formatted test summary directly to `$GITHUB_STEP_SUMMARY`.

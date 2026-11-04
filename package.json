@@ -6,7 +6,12 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node --test --test-reporter=spec test_phone_login.js test_payouts.js test_task_photos.js test_live_status.js test_viewer_machines.js",
+    "test": "node --test --test-reporter=spec test_phone_login.js test_payouts.js test_task_photos.js test_live_status.js test_viewer_machines.js test_role_super_admin.js test_role_owner.js test_role_viewer.js test_role_technician.js test_role_customer_care.js",
+    "test:role:super_admin": "node --test --test-reporter=spec test_role_super_admin.js",
+    "test:role:owner": "node --test --test-reporter=spec test_role_owner.js",
+    "test:role:viewer": "node --test --test-reporter=spec test_role_viewer.js",
+    "test:role:technician": "node --test --test-reporter=spec test_role_technician.js",
+    "test:role:customer_care": "node --test --test-reporter=spec test_role_customer_care.js",
     "test:integration": "node test_backend.js"
   },
   "dependencies": {
