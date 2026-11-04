@@ -22,37 +22,37 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - name: 1. Checkout Source Code
+      - name: "1. Checkout Source Code"
         uses: actions/checkout@v4
 
-      - name: 2. Set up Node.js 20.x
+      - name: "2. Set up Node.js 20.x"
         uses: actions/setup-node@v4
         with:
           node-version: 20.x
           cache: 'npm'
 
-      - name: 3. Install Dependencies
+      - name: "3. Install Dependencies"
         run: npm install
 
-      - name: 4. Core Backend Services & MQTT
+      - name: "4. Core Backend Services & MQTT"
         run: node scripts/run-role-tests.js "test_phone_login.js test_payouts.js test_task_photos.js test_live_status.js test_viewer_machines.js" "Core Backend Services & Live Telemetry"
 
-      - name: 5. Role Test: Super Admin
+      - name: "5. Role Test - Super Admin"
         run: node scripts/run-role-tests.js test_role_super_admin.js "Super Admin"
 
-      - name: 6. Role Test: Organization Owner
+      - name: "6. Role Test - Organization Owner"
         run: node scripts/run-role-tests.js test_role_owner.js "Organization Owner"
 
-      - name: 7. Role Test: Organization Viewer
+      - name: "7. Role Test - Organization Viewer"
         run: node scripts/run-role-tests.js test_role_viewer.js "Organization Viewer"
 
-      - name: 8. Role Test: Service Technician
+      - name: "8. Role Test - Service Technician"
         run: node scripts/run-role-tests.js test_role_technician.js "Service Technician"
 
-      - name: 9. Role Test: Customer Care Support
+      - name: "9. Role Test - Customer Care Support"
         run: node scripts/run-role-tests.js test_role_customer_care.js "Customer Care Support"
 
-      - name: 10. Report Test Failure (if any)
+      - name: "10. Report Test Failure (if any)"
         if: failure()
         run: |
           echo "### ❌ Backend automated test suite failed. Deployment is blocked." >> $GITHUB_STEP_SUMMARY
